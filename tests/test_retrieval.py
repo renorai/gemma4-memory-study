@@ -145,3 +145,13 @@ class ProductionRejectsFakeAuthor(unittest.TestCase):
         r = subprocess.run([sys.executable, "-c", code], cwd=Path(__file__).resolve().parents[1],
                            capture_output=True, text=True)
         self.assertEqual(r.stdout.strip(), "rejected", r.stderr)
+
+
+class FakeHarnessStaysOutOfRealPaths(unittest.TestCase):
+    def test_runner_agent_memory_stats_never_import_fake_harness(self):
+        import re
+        from pathlib import Path
+        root = Path(__file__).resolve().parents[1]
+        for d in ("memory", "runner", "agent", "stats"):
+            for f in (root / d).rglob("*.py"):
+                self.assertIsNone(re.search(r"^\s*(from|import)\s+fake_harness", f.read_text(), re.M), str(f))

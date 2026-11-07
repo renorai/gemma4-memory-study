@@ -106,3 +106,11 @@ class PerTaskSignTest(unittest.TestCase):
         r = compare(rows, "graph", "flat")
         self.assertEqual((r["wins"], r["losses"]), (1, 0))   # one task, not three pairs
         self.assertEqual(r["sign_p"], 1.0)
+
+
+class PerTaskRounding(unittest.TestCase):
+    def test_cancelling_graded_scores_are_ties(self):
+        from stats import per_task_means
+        d = [("a", "t", 0.1 + 0.2), ("b", "t", -0.3)]
+        self.assertEqual(per_task_means(d), [0.0])
+        self.assertEqual(sign_test(per_task_means(d))["n"], 0)

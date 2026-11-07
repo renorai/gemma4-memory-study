@@ -85,7 +85,8 @@ def per_task_means(diffs: Sequence[tuple[str, str, float]]) -> list[float]:
     g = defaultdict(list)
     for _m, t, d in diffs:
         g[t].append(d)
-    return [sum(v) / len(v) for _t, v in sorted(g.items())]
+    # Rounded so a cancelling mean of graded scores (e.g. 1/3 - 1/3) is an exact tie, not 1e-17.
+    return [round(sum(v) / len(v), 12) for _t, v in sorted(g.items())]
 
 
 def holm(pvalues: Mapping[str, float], alpha: float = 0.05) -> dict[str, dict]:
