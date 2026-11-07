@@ -19,12 +19,16 @@ from dataclasses import asdict, dataclass
 
 MAX_LESSON_CHARS = 400
 OUTCOMES = ("success", "failure")
-# Models allowed to author lessons. Lessons are self-distilled: only Gemma 4,
-# never a third-party model whose terms forbid training competitors on outputs.
-ALLOWED_SOURCE_MODELS = (
-    "gemma-4-e2b", "gemma-4-e4b", "gemma-4-12b", "gemma-4-31b",
-    "fake-policy",  # the offline fake harness used by the unit tests
-)
+# Models allowed to author lessons, matched EXACTLY. Lessons are self-distilled: only
+# Gemma 4, never a third-party model whose terms forbid training competitors on outputs.
+_GEMMA4 = ("gemma-4-e2b", "gemma-4-e4b", "gemma-4-12b", "gemma-4-31b")
+ALLOWED_SOURCE_MODELS = frozenset(_GEMMA4 + tuple(f"{m}-it-qat-w4a16" for m in _GEMMA4))
+_TEST_AUTHORS: set[str] = set()
+
+
+def allow_test_author(name: str) -> None:
+    """Only fake_harness calls this, for its scripted policy. Production code never imports it."""
+    _TEST_AUTHORS.add(name)
 
 
 class LessonError(ValueError):
@@ -56,7 +60,7 @@ class Lesson:
             raise LessonError(f"outcome must be one of {OUTCOMES}")
         if not self.source_task:
             raise LessonError("lesson needs a source_task (provenance)")
-        if not any(self.source_model.startswith(m) for m in ALLOWED_SOURCE_MODELS):
+        if self.source_model not in ALLOWED_SOURCE_MODELS and self.source_model not in _TEST_AUTHORS:
             raise LessonError(f"source_model {self.source_model!r} is not a Gemma 4 model")
         object.__setattr__(self, "text", text)
         if not self.lesson_id:

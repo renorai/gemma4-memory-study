@@ -92,3 +92,17 @@ class CostTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PerTaskSignTest(unittest.TestCase):
+    def test_models_on_one_task_count_once(self):
+        from stats import per_task_means
+        from stats.analyze import compare
+        d = [("a", "t1", 1.0), ("b", "t1", 1.0), ("c", "t1", 1.0), ("a", "t2", -1.0), ("b", "t2", 1.0)]
+        self.assertEqual(per_task_means(d), [1.0, 0.0])
+        rows = [row(m, arm, t, s) for m, t, g, f in
+                [("a", "t1", 1, 0), ("b", "t1", 1, 0), ("c", "t1", 1, 0)]
+                for arm, s in (("graph", g), ("flat", f))]
+        r = compare(rows, "graph", "flat")
+        self.assertEqual((r["wins"], r["losses"]), (1, 0))   # one task, not three pairs
+        self.assertEqual(r["sign_p"], 1.0)

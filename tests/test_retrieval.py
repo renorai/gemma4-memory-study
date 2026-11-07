@@ -22,6 +22,9 @@ class SchemaTests(unittest.TestCase):
         with self.assertRaises(LessonError):
             L("alpha:auth.sign", "ok", model="claude-x")   # only Gemma authors lessons
         with self.assertRaises(LessonError):
+            L("alpha:auth.sign", "ok", model="gemma-4-e4b-anything")   # exact match, no prefixes
+        L("alpha:auth.sign", "ok", model="gemma-4-31b-it-qat-w4a16")
+        with self.assertRaises(LessonError):
             Lesson(node_id="alpha:auth.sign", repo="alpha", text="ok", outcome="success",
                    source_task="", source_model="gemma-4-e4b")
 
@@ -130,3 +133,15 @@ class ArmTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ProductionRejectsFakeAuthor(unittest.TestCase):
+    def test_fake_policy_rejected_without_fake_harness(self):
+        import subprocess, sys
+        from pathlib import Path
+        code = ("from memory import Lesson, LessonError\n"
+                "try:\n Lesson(node_id='a:x', repo='a', text='t', outcome='success', source_task='t', source_model='fake-policy')\n"
+                "except LessonError: print('rejected')\n")
+        r = subprocess.run([sys.executable, "-c", code], cwd=Path(__file__).resolve().parents[1],
+                           capture_output=True, text=True)
+        self.assertEqual(r.stdout.strip(), "rejected", r.stderr)

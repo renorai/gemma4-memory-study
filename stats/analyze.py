@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Iterable, Mapping
 
-from . import cost_table, holm, paired_bootstrap_ci, paired_diffs, sign_test
+from . import cost_table, holm, paired_bootstrap_ci, paired_diffs, per_task_means, sign_test
 
 PRIMARY = ("graph", "flat")     # H1: graph-anchored beats flat experience memory
 CO_PRIMARY = ("graph", "none")  # H2: graph-anchored beats no memory
@@ -17,7 +17,8 @@ SEED = 20261107
 def compare(rows: list[Mapping], x: str, y: str, model: str | None = None) -> dict:
     d = paired_diffs(rows, x, y, model=model)
     ci = paired_bootstrap_ci(d, n_boot=N_BOOT, alpha=ALPHA, seed=SEED)
-    st = sign_test([v for _m, _t, v in d])
+    # One sign per task (mean over models), so the test's unit matches the bootstrap's cluster.
+    st = sign_test(per_task_means(d))
     return {"x": x, "y": y, "model": model or "pooled", **ci, "sign_p": st["p"],
             "wins": st["pos"], "losses": st["neg"]}
 

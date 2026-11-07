@@ -52,7 +52,8 @@ the primary test does not depend on it.
 - **Primary contrasts:** H1 = c − b; H2 = c − a. Both are paired by (model, task).
 - **Tests:** (i) a paired bootstrap 95% CI of the mean difference, with 10,000 resamples and seed
   20261107. Tasks are the resampling cluster, so each model's result on a drawn task stays
-  together. (ii) An exact two-sided sign test on the non-tied pairs. The two primary sign-test
+  together. (ii) An exact two-sided sign test on the non-tied *per-task* mean differences
+  (averaged over models), because pooled (model, task) pairs on one task are not independent. The two primary sign-test
   p-values get a Holm correction at α = 0.05.
 - **Decision rule:** a hypothesis is **SUPPORTED** only when the CI lies entirely above 0 *and* the
   Holm-adjusted sign test rejects. It is **CONTRADICTED** when the CI lies entirely below 0 and
@@ -264,7 +265,10 @@ budget whenever the base agent fits.
 
 ## 10. Protocol deviations log
 
-None yet.
+- 2026-11-07, before any run and before merge, from the PR #1560 independent review: the sign
+  test changed from pooled (model, task) pairs to per-task means across models, matching the
+  bootstrap's task clusters. The lesson validator changed from a prefix check to an exact match
+  on the model name.
 
 ## 11. Stretch: rejection-sampling LoRA on E4B
 

@@ -136,7 +136,7 @@ internet.
 
 A hypothesis counts as supported only when two conditions hold:
 - the task-clustered paired-bootstrap 95% CI (10,000 resamples) lies above zero, and
-- the Holm-adjusted exact sign test rejects at α = 0.05.
+- the Holm-adjusted exact sign test on per-task mean differences rejects at α = 0.05.
 
 Per-model contrasts are exploratory.
 

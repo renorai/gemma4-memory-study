@@ -79,6 +79,15 @@ def sign_test(diffs: Iterable[float]) -> dict:
     return {"n": n, "pos": pos, "neg": n - pos, "p": min(1.0, 2 * tail)}
 
 
+def per_task_means(diffs: Sequence[tuple[str, str, float]]) -> list[float]:
+    """Mean difference per task across models. Pooled (model, task) pairs on the same task
+    are not independent, so the sign test runs on these, matching the task-clustered bootstrap."""
+    g = defaultdict(list)
+    for _m, t, d in diffs:
+        g[t].append(d)
+    return [sum(v) / len(v) for _t, v in sorted(g.items())]
+
+
 def holm(pvalues: Mapping[str, float], alpha: float = 0.05) -> dict[str, dict]:
     """Holm-Bonferroni step-down. Returns adjusted p and reject flag per name."""
     order = sorted(pvalues, key=lambda k: (pvalues[k], k))

@@ -19,6 +19,9 @@ import re
 from dataclasses import dataclass
 
 from memory.adapter import Task
+from memory.schema import allow_test_author
+
+allow_test_author("fake-policy")
 
 REPOS = ("alpha", "beta", "gamma")
 ROLES = ("client.send", "client.build_request", "auth.sign", "utils.parse_headers", "models.Response")
