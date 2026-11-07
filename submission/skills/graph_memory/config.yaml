@@ -1,0 +1,3 @@
+# Written by runner/build_submission.py. Flat `key: value` only (recall.py parses it with the
+# standard library). The template value is a placeholder; a built submission sets the arm.
+arm: node

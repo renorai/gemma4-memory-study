@@ -1,137 +1,215 @@
+"""The whole protocol on the fake harness, plus the ADAPTER readers and the distiller's rules."""
 import json
 import tempfile
 import unittest
 from pathlib import Path
 
-from fake_harness import FakeAgent, FakeHarness, fake_generate
-from memory import DistillStats, LessonStore, distill_attempt, touched_nodes
-from runner.experiment import loro_memory, read_jsonl, run_loro
-from stats.analyze import analyze
+import fake_harness as fh
+from harness import (files_opened, lesson_ids_shown, outcome_of, patch_files, patch_old_lines,
+                     read_run, read_tasks, read_trace, repo_short, symbols_touched)
+from memory import LessonStore, RepoIndex
+from pipeline.distill import DistillStats, anchor_candidates, distill_attempt, parse_completion
+from pipeline.experiment import read_jsonl, run_protocol
+from runner.probes import key_recurrence_probe
+from stats.analyze import VERDICTS, analyze
 
-ROOT = Path(__file__).resolve().parents[1]
+M = fh.FAKE_MODEL
 
 
-def attempt(**kw):
-    a = {"run_id": "r", "task_id": "alpha-easy", "repo": "alpha", "model": "gemma-4-e4b",
-         "outcome": "success", "prompt": "p", "error": None,
-         "steps": [{"tool": "get_code_neighbors", "args": {"node_id": "alpha:client.send"},
-                    "nodes": ["alpha:client.build_request", "alpha:utils.parse_headers"]}]}
-    a.update(kw)
-    return a
+class E2E(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.d = Path(cls.tmp.name)
+        fh.write_repos(cls.d / "repos")
+        cls.tasks = fh.tasks()
+        cls.rows, cls.store, cls.stats = run_protocol(
+            fh.FakeEval(cls.d / "repos"), fh.fake_generate, cls.tasks,
+            lambda t: cls.d / "repos" / t.repo, M, cls.d / "out")
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    def by(self, arm, run=1):
+        return {r["task_id"]: r for r in self.rows if r["arm"] == arm and r["run"] == run}
+
+    def test_every_arm_run_and_task(self):
+        ids = {t.task_id for t in self.tasks}
+        for arm, runs in (("none", 3), ("node", 3), ("text", 1), ("node_khop", 1), ("shuffled", 1)):
+            for r in range(1, runs + 1):
+                self.assertEqual(set(self.by(arm, r)), ids, (arm, r))
+
+    def test_no_fold_ships_its_own_repo(self):
+        for arm in ("node", "text", "node_khop", "shuffled"):
+            for repo in fh.REPOS:
+                p = self.d / "out" / M / arm / "run1" / f"fold-{repo}" / "submission" / "skills" / "graph_memory" / "lessons.txt"
+                fold = LessonStore.load(p)
+                self.assertGreater(len(fold), 0)
+                self.assertFalse(any(l.repo == repo for l in fold), (arm, repo))
+
+    def test_none_ships_no_skill(self):
+        sub = self.d / "out" / M / "none" / "run1" / "all" / "submission"
+        self.assertFalse((sub / "skills").exists())
+        self.assertNotIn("graph_memory", (sub / "prompts" / "coder.md").read_text())
+
+    def test_mechanics_on_fixture(self):
+        none, node, khop = self.by("none"), self.by("node"), self.by("node_khop")
+        for repo in fh.REPOS:
+            self.assertEqual(none[f"{repo}-digest"]["success"], 1)
+            self.assertEqual(none[f"{repo}-header"]["success"], 0)
+            self.assertEqual(khop[f"{repo}-header"]["success"], 1)   # API key two hops down
+        self.assertEqual(node["alpha-header"]["success"], 1)          # name:send recurs in beta
+        self.assertEqual(node["gamma-header"]["success"], 0)          # gamma says `dispatch`
+        self.assertGreater(node["alpha-header"]["lessons_shown"], 0)
+
+    def test_lessons_are_self_distilled_and_keyed_transferably(self):
+        self.assertEqual(self.stats.attempts, 6)
+        self.assertTrue(all(l.source_model == M for l in self.store))
+        self.assertTrue(any("api:hmac.new" in l.keys for l in self.store))
+        self.assertEqual(LessonStore.load(self.d / "out" / M / "lessons.jsonl").key_counts(), self.store.key_counts())
+
+    def test_rows_are_written_and_deterministic(self):
+        self.assertEqual(read_jsonl(self.d / "out" / M / "rows.jsonl"), self.rows)
+        with tempfile.TemporaryDirectory() as d2:
+            fh.write_repos(Path(d2) / "repos")
+            rows2, _, _ = run_protocol(fh.FakeEval(Path(d2) / "repos"), fh.fake_generate, self.tasks,
+                                       lambda t: Path(d2) / "repos" / t.repo, M, Path(d2) / "out")
+        strip = lambda rs: [{k: v for k, v in r.items()} for r in rs]
+        self.assertEqual(strip(rows2), strip(self.rows))
+
+    def test_hit_at_k_and_process_columns(self):
+        r = self.by("node_khop")["gamma-header"]
+        self.assertEqual(r["hit@1"], 1)
+        self.assertEqual(self.by("none")["gamma-header"]["hit@1"], 0)
+        self.assertEqual(r["recalls"], 2)
+        self.assertGreater(r["model_calls"], 0)
+
+    def test_analysis_runs_and_does_not_fire_on_the_toy(self):
+        res = analyze(self.rows, primary_models=(M,))
+        h = res["primary"][M]
+        self.assertIn(h["verdict"], VERDICTS)
+        self.assertFalse(h["supported"])                 # 6 tasks can support nothing
+        self.assertEqual(h["n_pairs"], 6)
+        self.assertEqual(len(res["per_run_mcnemar"][M]), 3)
+        self.assertEqual(res["flip_rate"][f"{M}/none"]["runs"], 3)
+        self.assertTrue(all(c["label"].startswith("exploratory") for c in res["exploratory"]))
+        self.assertIn(M, res["moderators"])
+
+    def test_key_recurrence_probe(self):
+        cache = {r: RepoIndex.build(self.d / "repos" / r) for r in fh.REPOS}
+        p = key_recurrence_probe(self.tasks, lambda t: cache[t.repo])
+        self.assertEqual(p["n"], 6)
+        self.assertEqual(p["rate"], 1.0)                 # every fix site calls hmac.new
+
+
+class AdapterTests(unittest.TestCase):
+    def test_tasks_aliases(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "t.jsonl"
+            p.write_text(json.dumps({"instance_id": "encode__httpx-1", "repo": "encode/httpx",
+                                     "problem_statement": "x", "patch": "+++ b/a.py\n"}) + "\n"
+                         + json.dumps({"task_id": "t2", "repository": "fastapi", "problem_description": "y",
+                                       "hints": "h"}) + "\n")
+            a, b = read_tasks(p)
+            self.assertEqual((a.task_id, a.repo, a.problem, a.gold_patch), ("encode__httpx-1", "httpx", "x", "+++ b/a.py\n"))
+            self.assertEqual((b.repo, b.hints), ("fastapi", "h"))
+            p.write_text(json.dumps({"repo": "x"}) + "\n")
+            with self.assertRaises(ValueError):
+                read_tasks(p)
+        self.assertEqual(repo_short("Textualize__rich-12"), "rich")
+
+    def test_outcome_fails_closed(self):
+        self.assertEqual(outcome_of({"resolved": True}), 1)
+        self.assertEqual(outcome_of({"success": 0}), 0)
+        self.assertEqual(outcome_of({"passed": "false"}), 0)
+        self.assertEqual(outcome_of({"score": 1.0}), 1)
+        self.assertEqual(outcome_of({"status": "timeout"}), 0)
+        with self.assertRaises(ValueError):
+            outcome_of({"task_id": "t"})
+
+    def test_atif_trace(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "trace_t.json"
+            p.write_text(json.dumps({"steps": [
+                {"source": "user", "message": "fix", "timestamp": "2026-11-07T00:00:00Z"},
+                {"source": "agent", "timestamp": "2026-11-07T00:01:00Z",
+                 "tool_calls": [{"tool_call_id": "1", "function_name": "get_code_neighbors",
+                                 "arguments": "{\"node\": \"Client.send\"}"}],
+                 "observation": {"results": [{"source_call_id": "1", "content": "[...]"}]},
+                 "metrics": {"prompt_tokens": 10, "completion_tokens": 2}},
+                {"source": "agent", "timestamp": "2026-11-07T00:02:30Z",
+                 "tool_calls": [{"id": "2", "function": {"name": "run_command", "arguments":
+                                 {"command": "python3 x/recall.py --symbol pkg.f"}}}],
+                 "observation": {"results": [{"source_call_id": "2", "content": "- [L:0123456789ab] ..."}]},
+                 "metrics": {"prompt_tokens": 20, "completion_tokens": 3}}]}))
+            t = read_trace(p)
+        self.assertEqual((t["model_calls"], t["tokens_in"], t["tokens_out"], t["wall_s"]), (2, 30, 5, 150.0))
+        self.assertEqual(t["steps"][0]["args"], {"node": "Client.send"})
+        self.assertEqual(symbols_touched(t["steps"]), ["Client.send", "pkg.f"])
+        self.assertEqual(lesson_ids_shown(t["steps"]), ["0123456789ab"])
+
+    def test_patch_helpers(self):
+        p = "--- a/x/y.py\n+++ b/x/y.py\n@@ -10,2 +10,3 @@\n-a\n+b\n--- a/z.py\n+++ b/z.py\n@@ -3 +3 @@\n"
+        self.assertEqual(patch_files(p), ["x/y.py", "z.py"])
+        self.assertEqual(patch_old_lines(p), {"x/y.py": [10, 11], "z.py": [3]})
+        steps = [{"tool": "read_file", "args": {"path": "./x/y.py"}}, {"tool": "read_file", "args": {"path": "x/y.py"}},
+                 {"tool": "write_file", "args": {"path": "/tmp/task.md"}}, {"tool": "edit_file", "args": {"path": "z.py"}}]
+        self.assertEqual(files_opened(steps), ["x/y.py", "z.py"])
 
 
 class DistillTests(unittest.TestCase):
-    def setUp(self):
-        self.h = FakeHarness()
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        fh.write_repos(cls.tmp.name)
+        cls.ix = RepoIndex.build(Path(cls.tmp.name) / "alpha")
 
-    def test_touched_nodes_order(self):
-        self.assertEqual(touched_nodes(attempt())[0], "alpha:client.send")
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
 
-    def test_happy_path_uses_same_model_and_provenance(self):
-        got = distill_attempt(attempt(), fake_generate, repo_of=self.h.repo_of)
-        self.assertEqual(len(got), 1)
-        l = got[0]
-        self.assertEqual((l.node_id, l.repo, l.source_model, l.source_task, l.outcome),
-                         ("alpha:client.send", "alpha", "gemma-4-e4b", "alpha-easy", "success"))
+    def attempt(self, **kw):
+        a = {"task_id": "alpha-header", "repo": "alpha", "model": M, "run": 1, "outcome": "failure",
+             "prompt": "Requests sent with `Client.send` are wrong.",
+             "patch": "--- a/alpha/client.py\n+++ b/alpha/client.py\n@@ -10,1 +10,1 @@\n",
+             "steps": [{"tool": "get_code_neighbors", "args": {"node": "Client.send"}, "output": "[]"}]}
+        a.update(kw)
+        return a
 
-    def test_prompt_contains_anchors_and_outcome(self):
-        seen = {}
-        def gen(p):
-            seen["p"] = p
-            return "[]"
-        distill_attempt(attempt(outcome="failure"), gen, repo_of=self.h.repo_of)
-        self.assertIn("Outcome of the attempt (from the harness scorer): failure", seen["p"])
-        self.assertIn("- alpha:client.build_request", seen["p"])
-        self.assertNotIn("{{", seen["p"])
+    def test_anchors_are_only_touched_symbols(self):
+        got = anchor_candidates(self.attempt(), self.ix)
+        self.assertEqual(got[0], "alpha.client.build_request")   # the agent's own patch first
+        self.assertIn("alpha.client.Client.send", got)
+        self.assertNotIn("alpha.auth.sign", got)                 # never touched
 
-    def test_rejects_invented_anchor_gold_and_garbage(self):
+    def test_rejects_invented_anchor_forbidden_text_and_garbage(self):
         st = DistillStats()
-        gen = lambda p: ('```json\n[{"node_id": "alpha:auth.sign", "lesson": "never touched"},'
-                         '{"node_id": "alpha:client.send", "lesson": "answer is alpha:client.build_request"},'
-                         '{"node_id": "alpha:client.send", "lesson": "kept"}]\n```')
-        got = distill_attempt(attempt(), gen, repo_of=self.h.repo_of, stats=st,
-                              forbidden_strings=["alpha:client.build_request"])
-        self.assertEqual([l.text for l in got], ["kept"])
+        bad = json.dumps([{"anchor": "alpha.auth.sign", "title": "t", "lesson": "x"},
+                          {"anchor": "alpha.client.Client.send", "title": "t", "lesson": "SECRET_GOLD here"},
+                          {"anchor": "alpha.client.Client.send", "title": "t", "lesson": "y" * 401}])
+        out = distill_attempt(self.attempt(), lambda p: bad, self.ix, stats=st, forbidden_strings=["SECRET_GOLD"])
+        self.assertEqual(out, [])
         self.assertEqual(st.dropped["anchor_not_touched"], 1)
-        self.assertEqual(st.dropped["contains_gold"], 1)
-        self.assertEqual(distill_attempt(attempt(), lambda p: "no json here", repo_of=self.h.repo_of, stats=st), [])
-        self.assertEqual(st.dropped["unparseable"], 1)
-        self.assertEqual(distill_attempt(attempt(steps=[]), fake_generate, repo_of=self.h.repo_of, stats=st), [])
-        self.assertEqual(st.dropped["no_anchor"], 1)
-
-    def test_non_gemma_model_cannot_author(self):
-        st = DistillStats()
-        got = distill_attempt(attempt(model="gpt-x"), fake_generate, repo_of=self.h.repo_of, stats=st)
-        self.assertEqual(got, [])
+        self.assertEqual(st.dropped["contains_forbidden"], 1)
         self.assertTrue(any(k.startswith("invalid:") for k in st.dropped))
+        distill_attempt(self.attempt(), lambda p: "no json", self.ix, stats=st)
+        self.assertEqual(st.dropped["unparseable"], 1)
+        self.assertEqual(distill_attempt(self.attempt(model="gpt-x"), fh.fake_generate, self.ix), [])
 
+    def test_keys_come_from_source_not_from_the_model(self):
+        out = distill_attempt(self.attempt(), lambda p: json.dumps(
+            [{"anchor": "alpha.client.Client.send", "title": "t", "lesson": "x", "keys": ["api:evil"]}]), self.ix)
+        self.assertEqual(len(out), 1)
+        self.assertIn("name:send", out[0].keys)
+        self.assertNotIn("api:evil", out[0].keys)
 
-class EndToEndFakeTests(unittest.TestCase):
-    """Whole protocol on the fake harness: baseline -> distil -> LORO arms -> stats."""
-
-    def run_once(self, out=None):
-        h = FakeHarness()
-        return run_loro(h, FakeAgent(h), fake_generate, "fake-policy", out_dir=out)
-
-    def test_every_arm_every_task_and_no_leakage(self):
-        rows, store, st = self.run_once()
-        tasks = {t.task_id for t in FakeHarness().tasks()}
-        for arm in ("none", "flat", "graph"):
-            self.assertEqual({r["task_id"] for r in rows if r["arm"] == arm}, tasks)
-        self.assertGreater(len(store), 0)
-        for repo in ("alpha", "beta", "gamma"):
-            fold = loro_memory(store, repo, "fake-policy")
-            self.assertTrue(len(fold) > 0)
-            self.assertFalse(any(l.repo == repo for l in fold))
-
-    def test_mechanics_on_fixture(self):
-        rows, _store, _st = self.run_once()
-        by = {(r["arm"], r["task_id"]): r for r in rows}
-        # no memory: easy solved, hard failed, in every repo
-        for repo in ("alpha", "beta", "gamma"):
-            self.assertEqual(by[("none", f"{repo}-easy")]["success"], 1)
-            self.assertEqual(by[("none", f"{repo}-hard")]["success"], 0)
-            self.assertEqual(by[("graph", f"{repo}-hard")]["success"], 1)   # cross-repo lesson via embedding
-            self.assertGreater(by[("graph", f"{repo}-hard")]["n_lessons"], 0)
-
-    def test_deterministic_and_written(self):
-        with tempfile.TemporaryDirectory() as d:
-            rows1, store1, _ = self.run_once(d)
-            rows2, _, _ = self.run_once()
-            self.assertEqual(rows1, rows2)
-            self.assertEqual(read_jsonl(Path(d) / "rows-fake-policy.jsonl"), rows1)
-            self.assertEqual([l.lesson_id for l in LessonStore.load(Path(d) / "lessons-fake-policy.jsonl")],
-                             [l.lesson_id for l in store1])
-
-    def test_analysis_runs_on_fake_rows(self):
-        rows, _, _ = self.run_once()
-        res = analyze(rows)
-        self.assertIn(res["H1"]["verdict"], ("SUPPORTED", "CONTRADICTED", "NOT SUPPORTED (inconclusive)"))
-        # 6 tasks is far too few to support anything: the rule must not fire on the toy
-        self.assertFalse(res["H2"]["supported"])
-        self.assertEqual(res["H2"]["n_pairs"], 6)
-
-
-class SkillToolTests(unittest.TestCase):
-    def test_configure_and_recall(self):
-        import sys
-        sys.path.insert(0, str(ROOT / "agent" / "skills" / "graph_memory"))
-        import tool
-        h = FakeHarness()
-        rows, store, _ = run_loro(h, FakeAgent(h), fake_generate, "fake-policy")
-        with tempfile.TemporaryDirectory() as d:
-            store.save(Path(d) / "lessons.jsonl")
-            cfg = json.loads((ROOT / "agent" / "memory_config.json").read_text())
-            cfg["lessons_path"] = "lessons.jsonl"
-            (Path(d) / "memory_config.json").write_text(json.dumps(cfg))
-            self.assertEqual(tool.configure(h, Path(d) / "memory_config.json", Path(d) / "log.jsonl"), "graph")
-            out = tool.recall_lessons(node_id="beta:client.send")
-            self.assertTrue(out.startswith("Lessons from your own earlier attempts"))
-            self.assertEqual(len((Path(d) / "log.jsonl").read_text().splitlines()), 1)
-            cfg["arm"] = "none"
-            (Path(d) / "memory_config.json").write_text(json.dumps(cfg))
-            tool.configure(h, Path(d) / "memory_config.json")
-            self.assertEqual(tool.recall_lessons(node_id="beta:client.send"), "no lessons for this code")
+    def test_prompt_has_no_gold_and_no_unfilled_slots(self):
+        seen = {}
+        distill_attempt(self.attempt(), lambda p: seen.setdefault("p", p) and "[]", self.ix)
+        self.assertNotIn("{{", seen["p"])
+        self.assertIn("- alpha.client.Client.send", seen["p"])
+        self.assertEqual(parse_completion("<think>[1]</think> ```json\n[{\"a\": 1}]\n```"), [{"a": 1}])
 
 
 if __name__ == "__main__":

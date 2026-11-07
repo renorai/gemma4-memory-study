@@ -1,0 +1,24 @@
+You just finished an attempt at fixing an issue in a Python repository. Write short lessons that would help YOU on a DIFFERENT future task, most likely in a DIFFERENT repository that uses similar code.
+
+Issue:
+{{TASK}}
+
+Outcome of the attempt (from the harness tests): {{OUTCOME}}
+
+Your tool calls (tool(args) -> start of the result):
+{{STEPS}}
+
+Your final patch (may be empty):
+{{PATCH}}
+
+Symbols you worked on. Anchor each lesson to ONE of these, exactly as written:
+{{ANCHORS}}
+
+Rules:
+- At most {{MAX_LESSONS}} lessons. Each has an "anchor" from the list, a "title" of at most 80 characters, and a "lesson" of at most {{MAX_CHARS}} characters.
+- A lesson must make sense in another repository. Describe the code by its role, the library calls it makes and its callers or callees (for example "the function that calls hmac.new"), not only by this repository's names.
+- Good lessons: where a kind of bug really lives, a non-obvious caller or callee, a trap you fell into, a check that would have caught the mistake.
+- Do NOT restate this issue's fix. If the attempt failed, say what to do differently. If nothing is worth keeping, return [].
+
+Answer with a JSON array only, for example:
+[{"anchor": "pkg.module.Class.method", "title": "short title", "lesson": "one or two sentences"}]

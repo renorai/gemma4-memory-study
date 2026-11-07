@@ -90,22 +90,17 @@ class CostTest(unittest.TestCase):
         self.assertIn("| m | graph | 0.500 | 440.000 |", md)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
-class PerTaskSignTest(unittest.TestCase):
-    def test_models_on_one_task_count_once(self):
-        from stats import per_task_means
-        from stats.analyze import compare
-        d = [("a", "t1", 1.0), ("b", "t1", 1.0), ("c", "t1", 1.0), ("a", "t2", -1.0), ("b", "t2", 1.0)]
-        self.assertEqual(per_task_means(d), [1.0, 0.0])
-        rows = [row(m, arm, t, s) for m, t, g, f in
-                [("a", "t1", 1, 0), ("b", "t1", 1, 0), ("c", "t1", 1, 0)]
-                for arm, s in (("graph", g), ("flat", f))]
-        r = compare(rows, "graph", "flat")
-        self.assertEqual((r["wins"], r["losses"]), (1, 0))   # one task, not three pairs
-        self.assertEqual(r["sign_p"], 1.0)
+class RunsCollapseTest(unittest.TestCase):
+    def test_runs_average_per_task_before_the_test(self):
+        from stats.analyze import contrast
+        rows = []
+        for run in (1, 2, 3):
+            rows += [dict(row("m", "node", "t1", 1), run=run), dict(row("m", "none", "t1", int(run == 1)), run=run),
+                     dict(row("m", "node", "t2", 0), run=run), dict(row("m", "none", "t2", 0), run=run)]
+        r = contrast(rows, "node", "none", "m")
+        self.assertEqual(r["n_pairs"], 2)              # one pair per task, not per run
+        self.assertAlmostEqual(r["mean"], (2 / 3 + 0) / 2)
+        self.assertEqual((r["wins"], r["losses"]), (1, 0))
 
 
 class PerTaskRounding(unittest.TestCase):
@@ -114,3 +109,30 @@ class PerTaskRounding(unittest.TestCase):
         d = [("a", "t", 0.1 + 0.2), ("b", "t", -0.3)]
         self.assertEqual(per_task_means(d), [0.0])
         self.assertEqual(sign_test(per_task_means(d))["n"], 0)
+
+
+class McNemarAndFlipTest(unittest.TestCase):
+    def test_mcnemar_exact(self):
+        from stats import mcnemar_exact
+        x = {f"t{i}": 1 for i in range(10)}
+        y = {f"t{i}": 0 for i in range(10)}
+        self.assertAlmostEqual(mcnemar_exact(x, y)["p"], 2 / 1024)
+        y["t0"] = 1
+        r = mcnemar_exact(x, y)
+        self.assertEqual((r["b"], r["c"]), (9, 0))
+        with self.assertRaises(ValueError):
+            mcnemar_exact(x, {"t0": 1})
+
+    def test_flip_rates(self):
+        from stats import flip_rates
+        runs = {1: {"a": 1, "b": 0, "c": 1, "d": 0}, 2: {"a": 1, "b": 1, "c": 1, "d": 0},
+                3: {"a": 0, "b": 1, "c": 1, "d": 0}}
+        r = flip_rates(runs)
+        # pairs (1,2): b flips -> 1/4; (1,3): a, b -> 2/4; (2,3): a -> 1/4
+        self.assertAlmostEqual(r["pairwise"], (0.25 + 0.5 + 0.25) / 3)
+        self.assertAlmostEqual(r["any_flip"], 0.5)
+        self.assertIsNone(flip_rates({1: {"a": 1}})["pairwise"])
+
+
+if __name__ == "__main__":
+    unittest.main()

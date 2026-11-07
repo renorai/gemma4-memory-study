@@ -1,16 +1,18 @@
-"""Graph-anchored experience memory for small coding agents (Kaggle Gemma 4 entry).
+"""Transferable node-anchored experience memory for small coding agents (Kaggle Gemma 4 entry).
 
-Pure standard library, so it runs inside the offline Kaggle harness unchanged.
+This package is the code that ships: runner/build_submission.py copies these files verbatim
+into the submission's `skills/graph_memory/scripts/memory/`. Python >= 3.8, standard library
+only, no harness imports, so it runs inside the task sandbox unchanged.
 """
-from .adapter import HarnessAdapter, Task
-from .distill import DistillStats, distill_attempt, read_attempts, touched_nodes
-from .retrieval import (ARMS, FlatMemory, GraphMemory, NoMemory, RetrievalConfig, Retrieved,
+from .keys import STRONG, WEIGHTS, keys_for, mentioned_symbols
+from .pyindex import RepoIndex
+from .retrieval import (ARMS, MODE, NodeMemory, NoMemory, RetrievalConfig, Retrieved, TextMemory,
                         make_arm, render)
-from .schema import Lesson, LessonError
+from .schema import MODEL_ALIASES, Lesson, LessonError
 from .store import LessonStore
 
-__all__ = [
-    "ARMS", "DistillStats", "FlatMemory", "GraphMemory", "HarnessAdapter", "Lesson", "LessonError",
-    "LessonStore", "NoMemory", "RetrievalConfig", "Retrieved", "Task", "distill_attempt",
-    "make_arm", "read_attempts", "render", "touched_nodes",
-]
+SHIPPED = ("__init__.py", "keys.py", "pyindex.py", "retrieval.py", "schema.py", "store.py")
+
+__all__ = ["ARMS", "MODE", "MODEL_ALIASES", "STRONG", "SHIPPED", "WEIGHTS", "Lesson", "LessonError",
+           "LessonStore", "NoMemory", "NodeMemory", "RepoIndex", "RetrievalConfig", "Retrieved",
+           "TextMemory", "keys_for", "make_arm", "mentioned_symbols", "render"]

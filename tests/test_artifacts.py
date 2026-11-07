@@ -1,137 +1,153 @@
-"""Checks on the non-code deliverables: agent config, submission zip, notebook, paper."""
+"""Checks on the non-code deliverables: preregistration freeze, kernels, notebook, paper."""
+import hashlib
 import json
 import re
 import subprocess
 import sys
 import tempfile
 import unittest
-import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def yaml_instruction(text: str) -> str:
-    lines = text.split("\n")
-    i = lines.index("instruction: |") + 1
-    out = []
-    while i < len(lines) and (lines[i].startswith("  ") or lines[i] == ""):
-        out.append(lines[i][2:])
-        i += 1
-    return "\n".join(out).rstrip("\n")
+class PreregTests(unittest.TestCase):
+    def test_prereg_is_frozen(self):
+        digest = hashlib.sha256((ROOT / "PREREG.md").read_bytes()).hexdigest()
+        self.assertEqual(digest, (ROOT / "PREREG.sha256").read_text().strip(),
+                         "PREREG.md changed: log a deviation in DESIGN.md section 10 instead of editing it")
 
-
-class AgentConfigTests(unittest.TestCase):
-    def test_instruction_matches_system_prompt(self):
-        y = (ROOT / "agent" / "agent.yaml").read_text()
-        sysp = (ROOT / "agent" / "prompts" / "system.txt").read_text().rstrip("\n")
-        self.assertEqual(yaml_instruction(y), sysp.replace("{{LESSONS}}", "{memory_lessons?}"))
-
-    def test_memory_config_matches_defaults(self):
+    def test_prereg_parameters_match_code(self):
         from memory import RetrievalConfig
-        cfg = json.loads((ROOT / "agent" / "memory_config.json").read_text())
-        rc = RetrievalConfig(**cfg["retrieval"])
-        self.assertEqual(rc, RetrievalConfig(**{k: getattr(rc, k) for k in cfg["retrieval"]}))
-        defaults = RetrievalConfig()
-        for k, v in cfg["retrieval"].items():
-            self.assertEqual(getattr(defaults, k), v, k)   # shipped config == preregistered defaults
+        from memory.keys import STRONG, WEIGHTS
+        from runner.build_submission import SHUFFLE_SEED
+        from stats.analyze import N_BOOT, SEED
+        text = (ROOT / "PREREG.md").read_text()
+        c = RetrievalConfig()
+        for k in ("k", "char_budget", "per_task_cap", "n_seeds", "hops", "hop_decay", "max_region",
+                  "bm25_k1", "bm25_b"):
+            self.assertIn(f"{k} = {getattr(c, k)}", text, k)
+        for t, w in WEIGHTS.items():
+            self.assertIn(f"{t} {w}", text, t)
+        self.assertIn("{" + ", ".join(sorted(STRONG, key=["api", "base", "deco", "exc", "name"].index)) + "}", text)
+        self.assertEqual((SEED, SHUFFLE_SEED, N_BOOT), (20261107, 20261107, 10_000))
+        ev = (ROOT / "submission" / "eval_config.yaml").read_text()
+        self.assertIn("max_tool_calls: 100", ev)
+        self.assertIn("max_time_minutes: 60", ev)
+        self.assertIn("thinking_budget: 4096", (ROOT / "submission" / "agent.yaml").read_text())
 
 
-class SubmissionTests(unittest.TestCase):
-    def test_zip_per_arm_and_tool_imports_from_zip(self):
-        from runner.build_submission import build
+class KernelTests(unittest.TestCase):
+    def test_metadata_and_offline(self):
+        for k in ("throughput", "arm_run"):
+            meta = json.loads((ROOT / "kernels" / k / "kernel-metadata.json").read_text())
+            self.assertTrue((ROOT / "kernels" / k / meta["code_file"]).is_file())
+            self.assertFalse(meta["enable_internet"])
+            self.assertTrue(meta["enable_gpu"])
+            self.assertIn("gemma-4-developer-agent", meta["competition_sources"])
+            self.assertEqual(meta["kernel_type"], "script")
+            compile((ROOT / "kernels" / k / meta["code_file"]).read_text(), k, "exec")
+        for p in (ROOT / "kernels").glob("**/*.py"):
+            for url in re.findall(r"https?://[^\s\"']+", p.read_text()):
+                self.assertRegex(url, r"^http://(127\.0\.0\.1|localhost)", (p.name, url))
+
+    def test_throughput_kernel_reports_what_was_asked(self):
+        src = (ROOT / "kernels" / "throughput" / "throughput.py").read_text()
+        for needle in ("gemma-4-31b-it-qat-w4a16-ct", "CONCURRENCY = (8, 16)", "N_TASKS = 16", "tasks_per_hour",
+                       "agent_minutes_median", "model_calls_median", "cpu_info"):
+            self.assertIn(needle, src)
+        self.assertIn('sandbox="subprocess"', (ROOT / "kernels" / "common.py").read_text())
+
+    def test_configure_fills_placeholders(self):
+        from kernels.configure import configure
         with tempfile.TemporaryDirectory() as d:
-            lessons = Path(d) / "l.jsonl"
-            lessons.write_text('{"lesson_id": "", "node_id": "alpha:auth.sign", "outcome": "success", '
-                               '"repo": "alpha", "source_model": "gemma-4-e4b", "source_run": "", '
-                               '"source_task": "t", "text": "x"}\n')
-            g = build("graph", lessons, "gemma-4-e4b-it-qat-w4a16", Path(d) / "g.zip")
-            n = build("none", None, "gemma-4-e4b-it-qat-w4a16", Path(d) / "n.zip")
-            self.assertIn("skills/graph_memory/lessons.jsonl", g)
-            self.assertNotIn("skills/graph_memory/lessons.jsonl", n)
-            with zipfile.ZipFile(Path(d) / "n.zip") as z:
-                y = z.read("agent.yaml").decode()
-                self.assertNotIn("tool.recall_lessons", y)
-                self.assertIn("model: gemma-4-e4b-it-qat-w4a16", y)
-                self.assertEqual(json.loads(z.read("memory_config.json"))["arm"], "none")
-            with zipfile.ZipFile(Path(d) / "g.zip") as z:
-                z.extractall(Path(d) / "unz")
-            code = ("import sys; sys.path.insert(0, 'skills/graph_memory'); import tool, memory; "
-                    "assert memory.__file__.startswith(%r)" % str((Path(d) / "unz").resolve()))
-            r = subprocess.run([sys.executable, "-I", "-c", code], cwd=Path(d) / "unz",
-                               capture_output=True, text=True)
-            self.assertEqual(r.returncode, 0, r.stderr)
-            with self.assertRaises(ValueError):
-                build("graph", None, "gemma-4-e4b", Path(d) / "x.zip")
-            with self.assertRaises(ValueError):
-                build("graph", lessons, "llama-3", Path(d) / "x.zip")
+            out = configure("someone", "google/gemma-4/x/y/1", "someone/wheels", Path(d) / "k")
+            for k in ("throughput", "arm_run"):
+                meta = json.loads((out / k / "kernel-metadata.json").read_text())
+                self.assertTrue(meta["id"].startswith("someone/"))
+                self.assertIn("someone/wheels", meta["dataset_sources"])
+                self.assertEqual(meta["model_sources"], ["google/gemma-4/x/y/1"])
+            self.assertTrue((out / "code" / "memory" / "keys.py").is_file())
+            self.assertTrue((out / "code" / "kernels" / "common.py").is_file())
+            self.assertFalse(list(out.rglob("__pycache__")))
 
 
 class NotebookTests(unittest.TestCase):
     NB = ROOT / "notebook" / "gemma4_graph_memory.ipynb"
 
-    def test_valid_and_offline(self):
+    def code(self):
         nb = json.loads(self.NB.read_text())
         self.assertEqual(nb["nbformat"], 4)
-        src = "\n".join("".join(c["source"]) for c in nb["cells"] if c["cell_type"] == "code")
         for c in nb["cells"]:
             if c["cell_type"] == "code":
-                self.assertEqual(c.get("outputs"), [])        # shipped without stale outputs
+                self.assertEqual(c.get("outputs"), [])
+        return "\n\n".join("".join(c["source"]) for c in nb["cells"] if c["cell_type"] == "code")
+
+    def test_valid_offline_and_current(self):
+        src = self.code()
         for banned in ("pip install", "requests.get", "urllib.request", "http://", "https://",
                        "generativelanguage", "ollama"):
             self.assertNotIn(banned, src, banned)
-        compile(src.replace("%", "#"), "nb", "exec")
+        r = subprocess.run([sys.executable, str(ROOT / "notebook" / "make_notebook.py")], capture_output=True)
+        self.assertEqual(r.returncode, 0)
+        self.assertEqual(self.code(), src)    # the committed notebook is the generator's output
+
+    def test_executes_end_to_end_on_the_fake_harness(self):
+        with tempfile.TemporaryDirectory() as d:
+            script = Path(d) / "nb.py"
+            script.write_text(self.code())
+            r = subprocess.run([sys.executable, str(script)], cwd=ROOT / "notebook",
+                               env={"NB_OUT": str(Path(d) / "out"), "PATH": "/usr/bin:/bin"},
+                               capture_output=True, text=True, timeout=300)
+            self.assertEqual(r.returncode, 0, r.stderr[-3000:])
+            self.assertIn("fake harness (NOT results)", r.stdout)
+            self.assertIn("node-none", r.stdout)
+            for f in ("analysis.json", "rows-all.jsonl", "tables.md", "moderators.json"):
+                self.assertTrue((Path(d) / "out" / f).exists(), f)
 
 
 class PaperTests(unittest.TestCase):
+    def body(self):
+        return re.sub(r"<!--.*?-->", "", (ROOT / "paper" / "WRITEUP.md").read_text(), flags=re.S)
+
     def test_writeup_word_limit_and_sections(self):
-        text = (ROOT / "paper" / "WRITEUP.md").read_text()
-        body = re.sub(r"<!--.*?-->", "", text, flags=re.S)
-        words = len(re.findall(r"\S+", body))
-        self.assertLessEqual(words, 3000, words)
+        body = self.body()
+        self.assertLessEqual(len(re.findall(r"\S+", body)), 3000)   # tables and captions count
         for h in ("## Abstract", "## 1. Introduction", "## 2. Method", "## 3. Experiments", "## 4. Related work"):
             self.assertIn(h, body)
+        self.assertNotIn("state of the art", body.lower())
+        self.assertIn("VibeMemBench", body)
 
     def test_no_invented_results(self):
-        """Every cell of a results table is TODO until the notebook fills it."""
         text = (ROOT / "paper" / "WRITEUP.md").read_text()
-        for table in re.findall(r"<!-- RESULTS-TABLE -->\n(.*?)\n\n", text, flags=re.S):
+        tables = re.findall(r"<!-- RESULTS-TABLE -->\n(.*?)\n\n", text, flags=re.S)
+        self.assertGreaterEqual(len(tables), 5)
+        for table in tables:
             for line in table.splitlines()[2:]:
                 cells = [c.strip() for c in line.strip().strip("|").split("|")]
-                self.assertGreater(len(cells), 1, line)
                 self.assertTrue(all(c == "TODO" for c in cells[1:]), line)
-        tex = (ROOT / "paper" / "arxiv" / "main.tex").read_text()
-        self.assertIn("\\TODO", tex)
+        self.assertIn("\\TODO", (ROOT / "paper" / "arxiv" / "main.tex").read_text())
 
-    def test_bib_entries_have_arxiv_ids(self):
+    def test_bib_entries_are_verifiable_and_cited_keys_exist(self):
         bib = (ROOT / "paper" / "arxiv" / "refs.bib").read_text()
-        entries = re.findall(r"@\w+\{([^,]+),(.*?)\n\}", bib, flags=re.S)
-        self.assertGreaterEqual(len(entries), 9)
-        for key, body in entries:
-            self.assertRegex(body, r"eprint\s*=\s*\{\d{4}\.\d{4,5}\}", key)
+        entries = re.findall(r"@(\w+)\{([^,]+),(.*?)\n\}", bib, flags=re.S)
+        self.assertGreaterEqual(len(entries), 25)
+        for kind, key, body in entries:
+            if kind == "misc":
+                self.assertRegex(body, r"url\s*=\s*\{https://", key)
+            else:
+                self.assertRegex(body, r"eprint\s*=\s*\{\d{4}\.\d{4,5}\}", key)
+        keys = {k for _, k, _ in entries}
         tex = (ROOT / "paper" / "arxiv" / "main.tex").read_text()
-        keys = {k for k, _ in entries}
         for cited in re.findall(r"\\cite[pt]?\{([^}]+)\}", tex):
             for k in cited.split(","):
                 self.assertIn(k.strip(), keys)
+        related = (ROOT / "RELATED.md").read_text()
+        for _kind, _key, body in entries:
+            m = re.search(r"eprint\s*=\s*\{([\d.]+)\}", body)
+            if m:
+                self.assertIn(m.group(1), related, f"{m.group(1)} cited but not in RELATED.md")
 
 
 if __name__ == "__main__":
     unittest.main()
-
-
-class NotebookRunsOnFakeHarness(unittest.TestCase):
-    def test_executes_end_to_end_offline(self):
-        nb = json.loads((ROOT / "notebook" / "gemma4_graph_memory.ipynb").read_text())
-        src = "\n\n".join("".join(c["source"]) for c in nb["cells"] if c["cell_type"] == "code")
-        with tempfile.TemporaryDirectory() as d:
-            script = Path(d) / "nb.py"
-            script.write_text(src)
-            env = {"NB_OUT": str(Path(d) / "out"), "PATH": "/usr/bin:/bin"}
-            r = subprocess.run([sys.executable, str(script)], cwd=ROOT / "notebook", env=env,
-                               capture_output=True, text=True, timeout=300)
-            self.assertEqual(r.returncode, 0, r.stderr[-3000:])
-            self.assertIn("H1 graph-flat", r.stdout)
-            for f in ("analysis.json", "rows-all.jsonl", "tables.md", "budget_plan.json",
-                      "probe_embeddings.json", "noise.json", "lessons-fake-policy.jsonl"):
-                self.assertTrue((Path(d) / "out" / f).exists(), f)

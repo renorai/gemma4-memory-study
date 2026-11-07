@@ -1,181 +1,208 @@
-"""A tiny, deterministic, offline stand-in for the Kaggle harness.
+"""A tiny, deterministic, offline stand-in for `swegemma eval`, for testing the MECHANICS only.
 
-It exists so that every arm, the distiller, the runner and the statistics can be
-exercised in unit tests without the 22 GB dataset or a model. It proves the
-MECHANICS only. Nothing measured on it is a result, and nothing from it goes into
-the paper.
+Nothing measured on it is a result, and nothing from it goes into the paper.
 
-Fixture: three toy repos (alpha, beta, gamma) with the same five roles. Node
-embeddings are 8-d: one basis vector per role plus a small repo-specific tilt, so
-the same role in two repos is close (cos ~0.99) and different roles are far apart.
+It writes three small Python repositories to disk (alpha, beta, gamma). They play the same
+roles under DIFFERENT names, the situation the hidden private repos create:
 
-    client.send -> client.build_request -> auth.sign
-    client.send -> utils.parse_headers  -> models.Response
+    alpha:  Client.send     -> build_request -> sign           (sign calls hmac.new)
+    beta:   Session.send    -> prepare       -> sign_request   (sign_request calls hmac.new)
+    gamma:  Connection.dispatch -> make_request -> add_signature (add_signature calls hmac.new)
+
+Each repo has two tasks:
+    <repo>-digest   the signer itself is named and is the fix site (the agent solves it unaided)
+    <repo>-header   the issue names the sender; the fix site is the signer, two hops down.
+                    The scripted agent only looks one hop down, so it fails without help.
+
+`FakeEval` is an Evaluator for pipeline.experiment: it reads the built submission directory,
+and when the memory section is present it runs the SHIPPED skill script
+(skills/graph_memory/scripts/recall.py) as a subprocess inside the fixture repo, exactly as
+the real agent would through run_command. It writes swegemma's layout: task_results.jsonl,
+summary.json, patches/<id>.diff and ATIF traces/trace_<id>.json.
+
+The scripted policy: if a recall printed a lesson mentioning `hmac.new`, it edits the repo
+function that calls hmac.new; else, if the issue says "digest", it edits the named function;
+else it edits the first callee of the named function.
 """
 from __future__ import annotations
 
-import math
+import json
 import re
-from dataclasses import dataclass
+import subprocess
+import sys
+from pathlib import Path
 
-from memory.adapter import Task
-from memory.schema import allow_test_author
+from harness.swegemma import Task
+from memory import RepoIndex
+# The scripted policy runs under a real alias because build() accepts only the four aliases.
+# It is still a script, not Gemma: nothing it produces is a result.
+FAKE_MODEL = "gemma-4-e2b-it-qat-w4a16-ct"
 
-allow_test_author("fake-policy")
-
-REPOS = ("alpha", "beta", "gamma")
-ROLES = ("client.send", "client.build_request", "auth.sign", "utils.parse_headers", "models.Response")
-EDGES = (("client.send", "client.build_request"), ("client.build_request", "auth.sign"),
-         ("client.send", "utils.parse_headers"), ("utils.parse_headers", "models.Response"))
-DOCS = {
-    "client.send": "def send(request): dispatch an http request and return the response",
-    "client.build_request": "def build_request(method, url): assemble method url headers",
-    "auth.sign": "def sign(request): add an hmac signature header",
-    "utils.parse_headers": "def parse_headers(raw): split raw header lines into a dict",
-    "models.Response": "class Response: status code body and headers",
+REPOS = {
+    "alpha": {"pkg": "alpha", "cls": "Client", "send": "send", "build": "build_request", "sign": "sign"},
+    "beta": {"pkg": "beta", "cls": "Session", "send": "send", "build": "prepare", "sign": "sign_request"},
+    "gamma": {"pkg": "gamma", "cls": "Connection", "send": "dispatch", "build": "make_request",
+              "sign": "add_signature"},
 }
-DIM = 8
+
+SOURCE = '''"""{pkg}: a toy HTTP client."""
+from .auth import {sign}
 
 
-def node(repo: str, role: str) -> str:
-    return f"{repo}:{role}"
+class Request:
+    def __init__(self, method, url):
+        self.method, self.url, self.headers = method, url, {{}}
 
 
-def role_of(node_id: str) -> str:
-    return node_id.split(":", 1)[1]
+def {build}(method, url):
+    req = Request(method, url)
+    return {sign}(req)
 
 
-def _vec(repo: str, role: str) -> list[float]:
-    v = [0.0] * DIM
-    v[ROLES.index(role)] = 1.0
-    v[5 + REPOS.index(repo)] = 0.15  # repo tilt
-    return v
+class {cls}:
+    def {send}(self, method, url):
+        req = {build}(method, url)
+        return self._transport(req)
+
+    def _transport(self, req):
+        return req
+'''
+
+AUTH = '''import hashlib
+import hmac
+
+SECRET = b"k"
 
 
-def _tokens(text: str) -> set[str]:
-    return {t for t in re.split(r"[^a-z0-9]+", text.lower()) if t}
+def {sign}(req):
+    digest = hmac.new(SECRET, req.url.encode(), hashlib.sha256).hexdigest()
+    req.headers["X-Signature"] = digest
+    return req
+'''
 
 
-class FakeHarness:
-    """Implements memory.adapter.HarnessAdapter."""
-
-    def __init__(self):
-        self._nodes = {node(r, ro): (r, ro) for r in REPOS for ro in ROLES}
-        self._adj: dict[str, list[str]] = {n: [] for n in self._nodes}
-        for r in REPOS:
-            for a, b in EDGES:
-                self._adj[node(r, a)].append(node(r, b))
-                self._adj[node(r, b)].append(node(r, a))
-        for n in self._adj:
-            self._adj[n].sort()
-        self._tasks = []
-        for r in REPOS:
-            # easy: the answer is one hop from the seed
-            self._tasks.append(Task(f"{r}-easy", r,
-                                    "Starting from client.send, which function builds the request?",
-                                    (node(r, "client.send"),), {"gold": node(r, "client.build_request")}))
-            # hard: the answer is two hops away; the fake agent only explores one hop
-            self._tasks.append(Task(f"{r}-hard", r,
-                                    "Which function adds the signature to requests made by client.send?",
-                                    (node(r, "client.send"),), {"gold": node(r, "auth.sign")}))
-
-    # --- HarnessAdapter ---
-    def tasks(self):
-        return list(self._tasks)
-
-    def repo_of(self, node_id):
-        return self._nodes[node_id][0]
-
-    def embedding(self, node_id):
-        if node_id not in self._nodes:
-            return None
-        return _vec(*self._nodes[node_id])
-
-    def neighbors(self, node_id):
-        return list(self._adj.get(node_id, ()))
-
-    def similar_nodes(self, *, node_id=None, query=None, k=10):
-        if node_id is not None:
-            q = self.embedding(node_id)
-            nq = math.sqrt(sum(x * x for x in q))
-            scored = []
-            for n in self._nodes:
-                if n == node_id:
-                    continue
-                v = self.embedding(n)
-                scored.append((n, sum(a * b for a, b in zip(q, v)) / (nq * math.sqrt(sum(x * x for x in v)))))
-        else:
-            qt = _tokens(query or "")
-            scored = []
-            for n, (_r, ro) in self._nodes.items():
-                dt = _tokens(DOCS[ro] + " " + ro)
-                scored.append((n, len(qt & dt) / len(qt | dt) if qt | dt else 0.0))
-        scored.sort(key=lambda x: (-x[1], x[0]))
-        return scored[:k]
-
-    def subgraph(self, node_id, hops=1):
-        seen, frontier, edges = {node_id}, [node_id], []
-        for _ in range(hops):
-            nxt = []
-            for n in frontier:
-                for m in self._adj[n]:
-                    edges.append([n, m])
-                    if m not in seen:
-                        seen.add(m)
-                        nxt.append(m)
-            frontier = nxt
-        return {"nodes": sorted(seen), "edges": sorted(edges)}
+def write_repos(root):
+    root = Path(root)
+    for repo, r in REPOS.items():
+        pkg = root / repo / r["pkg"]
+        pkg.mkdir(parents=True, exist_ok=True)
+        (pkg / "__init__.py").write_text("")
+        (pkg / "client.py").write_text(SOURCE.format(**r))
+        (pkg / "auth.py").write_text(AUTH.format(**r))
+    return root
 
 
-@dataclass
-class FakeAgent:
-    """Scripted policy standing in for Gemma. Deterministic.
-
-    It reads the seed's one-hop neighbourhood. It answers correctly when the gold
-    node is in that neighbourhood, or when a rendered lesson names the gold ROLE
-    (it then maps the role onto its own repo). Otherwise it answers the first
-    neighbour, which is wrong for the hard task.
-    """
-
-    harness: FakeHarness
-    model: str = "fake-policy"
-
-    def __call__(self, task: Task, arm, run_id: str = "fake") -> dict:
-        steps = []
-        lessons = arm.for_task(task)
-        rendered = "\n".join(f"{r.lesson.node_id} {r.lesson.text}" for r in lessons)
-        seed = task.seed_nodes[0]
-        nbrs = self.harness.neighbors(seed)
-        steps.append({"tool": "get_code_neighbors", "args": {"node_id": seed}, "nodes": nbrs})
-        gold = task.meta["gold"]
-        answer = None
-        target_role = role_of(gold)
-        if gold in nbrs:
-            answer = gold
-        elif target_role in rendered:
-            answer = node(task.repo, target_role)
-            steps.append({"tool": "get_code_neighbors", "args": {"node_id": answer},
-                          "nodes": self.harness.neighbors(answer)})
-        else:
-            answer = nbrs[0]
-        prompt_chars = len(task.prompt) + len(rendered)
-        return {
-            "run_id": run_id, "task_id": task.task_id, "repo": task.repo, "model": self.model,
-            "arm": arm.arm, "prompt": task.prompt, "steps": steps, "final_answer": answer,
-            "outcome": "success" if answer == gold else "failure", "error": None,
-            "tokens_in": prompt_chars // 4 + 50 * len(steps), "tokens_out": 20 * len(steps),
-            "wall_s": 1.0 * len(steps), "lesson_ids": [r.lesson.lesson_id for r in lessons],
-        }
+def tasks():
+    out = []
+    for repo, r in REPOS.items():
+        sign_q = f"{r['pkg']}.auth.{r['sign']}"
+        send_q = f"{r['pkg']}.client.{r['cls']}.{r['send']}"
+        gold_sign = f"--- a/{r['pkg']}/auth.py\n+++ b/{r['pkg']}/auth.py\n@@ -8,3 +8,3 @@\n"
+        for kind, problem, gold in (
+            ("digest", f"`{r['sign']}` computes the digest over the wrong bytes.", gold_sign),
+            ("header", f"Requests sent with `{r['cls']}.{r['send']}` have a wrong X-Signature header.", gold_sign),
+        ):
+            raw = {"instance_id": f"{repo}-{kind}", "repo": f"toy/{repo}", "problem_statement": problem,
+                   "hints_text": "", "patch": gold, "_gold_symbol": sign_q, "_seed": send_q if kind == "header" else sign_q}
+            out.append(Task(raw["instance_id"], repo, problem, "", gold, raw))
+    return out
 
 
-def fake_generate(prompt: str) -> str:
-    """Stands in for the attempting Gemma model during distillation. Deterministic:
-    anchors one lesson on the first listed anchor and mentions every node it touched."""
-    anchors = re.findall(r"^- (\S+)$", prompt.split("you may ONLY anchor", 1)[-1], re.M)
+class FakeEval:
+    """Evaluator(submission_dir, tasks, results_dir) writing swegemma's results layout."""
+
+    def __init__(self, repos_root, model=FAKE_MODEL):
+        self.root, self.model = Path(repos_root), model
+        self._ix = {}
+
+    def index(self, repo):
+        if repo not in self._ix:
+            self._ix[repo] = RepoIndex.build(self.root / repo)
+        return self._ix[repo]
+
+    def _recall(self, sub, repo_dir, task_file, symbols):
+        script = sub / "skills" / "graph_memory" / "scripts" / "recall.py"
+        cmd = [sys.executable, "-I", str(script), "--task-file", str(task_file)]
+        for s in symbols:
+            cmd += ["--symbol", s]
+        r = subprocess.run(cmd, cwd=repo_dir, capture_output=True, text=True, timeout=60)
+        return " ".join(cmd[2:]), (r.stdout + r.stderr).strip()
+
+    def __call__(self, submission_dir, task_list, results_dir):
+        sub, res = Path(submission_dir), Path(results_dir)
+        (res / "traces").mkdir(parents=True, exist_ok=True)
+        (res / "patches").mkdir(exist_ok=True)
+        memory_on = "## Memory from earlier runs" in (sub / "prompts" / "coder.md").read_text()
+        rows = []
+        for t in task_list:
+            ix, repo_dir = self.index(t.repo), self.root / t.repo
+            seed = t.raw["_seed"]
+            calls, recalled = [], ""
+            if memory_on:
+                tf = res / f"task_{t.task_id}.md"
+                tf.write_text(t.problem)
+                calls.append(("write_file", {"path": "/tmp/task.md"}, "ok"))
+                cmd, out = self._recall(sub, repo_dir, tf, [])
+                calls.append(("run_command", {"command": "python3 " + cmd}, out))
+                recalled += out
+            nbrs = ix.callees(seed)
+            calls.append(("get_code_neighbors", {"node": seed, "edge_type": "calls", "max_neighbors": 10},
+                          json.dumps(nbrs)))
+            if memory_on:
+                cmd, out = self._recall(sub, repo_dir, res / f"task_{t.task_id}.md", [seed])
+                calls.append(("run_command", {"command": "python3 " + cmd}, out))
+                recalled += out
+            if "hmac.new" in recalled:
+                target = next(q for q in sorted(ix.symbols) if "api:hmac.new" in _keys(ix, q))
+            elif "digest" in t.problem:
+                target = seed
+            else:
+                target = next((n for n in nbrs if ix.symbols[n].kind != "class"), nbrs[0])
+            sym = ix.symbols[target]
+            calls.append(("read_file", {"path": sym.path}, "..."))
+            calls.append(("edit_file", {"path": sym.path}, "ok"))
+            calls.append(("submit_patch", {}, "submitted"))
+            ok = target == t.raw["_gold_symbol"]
+            patch = f"--- a/{sym.path}\n+++ b/{sym.path}\n@@ -{sym.lineno},1 +{sym.lineno},1 @@\n"
+            (res / "patches" / f"{t.task_id}.diff").write_text(patch)
+            (res / "traces" / f"trace_{t.task_id}.json").write_text(json.dumps(_atif(t, calls, self.model)))
+            rows.append({"instance_id": t.task_id, "resolved": ok})
+        with (res / "task_results.jsonl").open("w") as f:
+            for r in rows:
+                f.write(json.dumps(r) + "\n")
+        (res / "summary.json").write_text(json.dumps({"n": len(rows), "resolved": sum(r["resolved"] for r in rows)}))
+
+
+def _keys(ix, q):
+    from memory.keys import keys_for
+    return keys_for(ix, q)
+
+
+def _atif(task, calls, model):
+    steps = [{"step_id": 1, "timestamp": "2026-11-07T00:00:00Z", "source": "user", "message": task.problem}]
+    for i, (tool, args, out) in enumerate(calls, 2):
+        steps.append({"step_id": i, "timestamp": f"2026-11-07T00:00:{i * 10:02d}Z", "source": "agent",
+                      "message": "", "reasoning_content": "",
+                      "tool_calls": [{"tool_call_id": f"c{i}", "function_name": tool, "arguments": args}],
+                      "observation": {"results": [{"source_call_id": f"c{i}", "content": out}]},
+                      "metrics": {"prompt_tokens": 1000 + 100 * i, "completion_tokens": 50}})
+    return {"schema_version": "ATIF-v1.2", "session_id": task.task_id,
+            "agent": {"name": "fake", "model_name": model}, "steps": steps,
+            "final_metrics": {"total_steps": len(steps)}}
+
+
+def fake_generate(prompt):
+    """Stands in for the attempting Gemma model during distillation. Deterministic."""
+    anchors = re.findall(r"^- (\S+)$", prompt.split("exactly as written:", 1)[-1], re.M)
     if not anchors:
         return "[]"
-    outcome = re.search(r"Outcome of the attempt \(from the harness scorer\): (\w+)", prompt).group(1)
-    roles = ", ".join(role_of(a) for a in anchors)
-    verb = "worked" if outcome == "success" else "was not enough"
-    return ('[{"node_id": "%s", "lesson": "Walking %s %s; the request path also passes auth.sign '
-            'two hops down via build_request."}]' % (anchors[0], roles, verb))
+    outcome = re.search(r"Outcome of the attempt \(from the harness tests\): (\w+)", prompt).group(1)
+    if outcome == "success":
+        a = next((x for x in anchors if x.split(".")[-1] in {r["sign"] for r in REPOS.values()}), anchors[0])
+        return json.dumps([{"anchor": a, "title": "Signature bugs live in the signer",
+                            "lesson": "The function that calls hmac.new builds the X-Signature header; "
+                                      "fix signature bugs there."}])
+    a = next((x for x in anchors if x.split(".")[-1] in {r["send"] for r in REPOS.values()}), anchors[0])
+    return json.dumps([{"anchor": a, "title": "Look below the sender",
+                        "lesson": "A wrong signature header on send is not set in send itself: it is "
+                                  "computed by the helper that calls hmac.new, two calls down."}])

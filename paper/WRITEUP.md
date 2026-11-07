@@ -1,253 +1,289 @@
 <!--
-Kaggle Writeup skeleton. Hard limit: 3,000 words. tests/test_artifacts.py counts the words
-(HTML comments are excluded) and fails at 3,001.
+Kaggle Writeup skeleton. Hard limit: 3,000 words, and tables and captions count (host ruling).
+tests/test_artifacts.py counts the words (HTML comments are excluded) and fails at 3,001.
 Rules for filling it in:
 - Every number comes from notebook/gemma4_graph_memory.ipynb output.
-- Every number names its model, judge or scorer, and split.
+- Every number names its model, its scorer (the harness's tests) and its split.
 - No "state of the art" and no other claim we have not measured.
 - Results tables stay TODO until the notebook writes them; the test checks this.
+- Submit Writeup 1 EARLY (by Tue 10 Nov) and keep editing it: on 22 Oct a participant reported
+  that the form blocked a second writeup.
 -->
 
-# Memory Anchored to the Code Graph Helps Small Coding Agents?
+# When Does Transferable Node-Anchored Memory Help Small Coding Agents?
 
-<!-- Title ends with "?" until the preregistered rule (DESIGN.md section 2) says SUPPORTED. If it does not, retitle to the finding, e.g. "... does not help ..." -->
+<!-- Keep the question as the title. After the analysis, keep it, or answer it in the preregistered words. -->
 
 ## Abstract
 
-Small open models acting as coding agents forget everything between tasks. Experience memory
-helps here: lessons the agent writes after an attempt and reads before the next. But it is
-usually retrieved by text similarity, and a new task rarely uses the words of an old lesson.
+Experience memory for coding agents rarely beats having no memory at all. On VibeMemBench, 11 of
+12 solver and memory-system pairings failed to beat the memory-off baseline. We ask *when* memory
+helps small open models, under a constraint that real deployments share: the test repositories
+are private and unseen.
 
-We study a different key. Each lesson is anchored to a node of the repository's AST call graph.
-It is retrieved through the call-graph neighbourhood and the harness's precomputed node
-embeddings, so it can reach structurally similar code in a repository it was never written on.
+Lessons that Gemma 4 writes after its own runs are anchored to call-graph nodes. They are keyed
+not by node identity, which does not exist in a new repository, but by *transferable anchor keys*
+that recur across codebases:
+- the external APIs a symbol calls;
+- its leaf name;
+- its external decorators and bases;
+- its raised exceptions;
+- its fan-in and fan-out shape.
 
-Each Gemma 4 model (E4B, 12B and 31B) distils lessons only from its own successful and failed
-attempts. We compare three arms: no memory, flat text-similarity memory, and graph-anchored
-memory. The two memory arms share an identical lesson pool, top-k and context budget, so only the
-retrieval key differs.
+A standard-library skill script inside a declarative ADK submission recomputes these keys from
+the source the agent is looking at, and returns matching lessons.
 
-The evaluation runs leave-one-repo-out over the 129 development tasks of the Gemma 4 Developer
-Agent harness (fastapi, rich, requests, httpx). We also report official hidden-set scores from
-private repositories. The primary metric and decision rule were preregistered before any run.
+On the 129 development tasks of the Gemma 4 Developer Agent harness we run leave-one-repo-out
+over fastapi, rich, requests and httpx, on Gemma 4 31B and 12B. The headline arms are no memory
+and node-anchored memory, with three runs each. Exploratory arms are ReasoningBank-style text
+keys, node keys plus 2-hop neighbourhood, and a shuffled-key control. The analysis was
+preregistered before any run.
 
-**Result:** TODO, stated in the preregistered words: SUPPORTED, CONTRADICTED or NOT SUPPORTED,
-with the pooled difference and its 95% CI.
+**Result:** TODO, in the preregistered words (SUPPORTED, CONTRADICTED or NOT SUPPORTED), with the
+mean difference, its 95% CI and the run-to-run flip rate, per model.
 
 ## 1. Introduction
 
-An agent that solved a task about `Client.send` yesterday should not rediscover today that
-`send` reaches `auth.sign` through `build_request`. Experience memory addresses this: Reflexion,
-ExpeL, Agent Workflow Memory and ReasoningBank all let an agent keep natural-language lessons
-from its own trajectories. These systems retrieve lessons by text or task similarity. For code,
-that is a weak key. A lesson about a function is relevant whenever a later task *touches that
-function or code like it*, whatever the task's wording.
+**The problem.** A coding agent that learned yesterday that a wrong signature header comes from
+the helper calling `hmac.new`, two calls below `send`, should not rediscover it today in another
+repository. Experience memory aims at this: Reflexion, ExpeL, Agent Workflow Memory, ReasoningBank
+and SWE-Exp all keep natural-language lessons from an agent's own trajectories and retrieve them
+by text or task similarity. Yet a careful benchmark, VibeMemBench, found that existing memory
+systems mostly do not beat memory-off for coding agents. Directly injected verified experience
+helped four of five solvers, by 1.1 to 4.5 percentage points.
 
-Coding harnesses increasingly expose the repository as a graph. The Gemma 4 Developer Agent
-harness gives agents three tools over AST call graphs: `get_code_neighbors`,
-`search_similar_code` (backed by precomputed 256-dimensional node embeddings) and
-`get_code_subgraph`. That suggests using the graph itself as the memory index. Store each lesson
-on a node, and at retrieval time look at the task's nodes, their call-graph neighbourhood, and
-nodes the embedding places close to them, including nodes in other repositories.
+**Why the Gemma 4 harness makes this sharper.** Its hidden test set comes from private
+repositories. Its submissions are declarative: YAML agents, prompts and skill scripts, with no
+Python entry point. Memory must therefore ship inside the submission as static lessons. It must
+also find its way to code in a repository that no lesson was written on.
 
-**Research question.** With the lesson pool held fixed, does retrieving lessons through the code
-graph raise task success over retrieving them by text, and over no memory, for small coding
-agents?
+**Our answer: key lessons by what recurs, and keep the graph as the place they attach.** A lesson
+is written about one call-graph node, the code the agent worked on. It is keyed by properties of
+that node that also occur in unseen code, and retrieved when the agent stands on, or within k hops
+of, a node with the same keys.
+
+**Research question.** Holding the lesson pool and context budget fixed, when do transferable
+node-anchored lessons raise task resolution for Gemma 4 31B and 12B on repositories they were not
+written on? When do they fail to, and is any gain due to the anchoring itself?
 
 **Contributions.**
-1. **Graph-anchored experience memory.** A lesson store keyed by call-graph node id. Retrieval
-   combines exact anchors, hop-decayed neighbourhood and node-embedding similarity, which gives
-   cross-repository transfer. It is pure Python, adds no model calls, and ships inside an ADK
-   agent config.
-2. **A controlled, preregistered comparison.** Three arms on three Gemma 4 sizes. The two memory
-   arms share the lesson pool, top-k and context budget. The primary split is leave-one-repo-out
-   over four repositories. We use paired bootstrap CIs and exact sign tests and report tokens,
-   wall time and GPU-hours.
-3. **Strict self-distillation.** Each model learns only from its own attempts, never from a
-   stronger model's trajectories.
-4. **A reproducible package.** A public Kaggle notebook reproduces every number in this Writeup
-   offline. The code and a deterministic fake harness for testing are released under Apache 2.0.
+1. **Transferable anchor keys.** An anchoring scheme for experience memory that survives the move
+   to an unseen repository. A standard-library skill script implements it: it indexes the
+   repository, resolves symbols as the harness does, derives keys and selects lessons. There are
+   no model calls, and it is valid under the competition's declarative rules.
+2. **A preregistered "when does it help" study.**
+   - Five arms: none, text-keyed, node-keyed, node plus k-hop, and a shuffled-key control. Every
+     memory arm has identical prompts and code.
+   - Leave-one-repo-out, with three runs on the headline pair, paired exact tests and the flip
+     rate between identical runs.
+   - Process measures: localization Hit@k, steps and tokens.
+3. **Strict self-distillation.** Each Gemma model learns only from its own attempts.
+4. **A reproducible package.** Kaggle kernels for throughput and for the arm runs, a validator for
+   the submission rules, and a notebook that recomputes every number. Code under Apache 2.0.
 
-**Findings.** TODO, written after the analysis, in the preregistered verdict words.
+**Findings.** TODO, after the analysis, in the preregistered words.
 
 ## 2. Method
 
 ### 2.1 Setting
 
-A task gives the agent a natural-language request about one Python repository. The agent sees
-the repository only through the harness's graph tools. The harness scorer marks each attempt.
-TODO (ADAPTER): describe the task types and the scorer exactly as HARNESS_README.md defines them.
+**The task.** Each task gives the agent an issue (`{problem_description}`, `{hints}`) in one
+Python repository, and the agent returns a patch.
+
+**The tools** are: `run_command`, `read_file`, `write_file`, `edit_file`, `get_status`,
+`submit_patch`, and three graph tools over the harness's AST call graph:
+- `get_code_neighbors`;
+- `get_code_subgraph`;
+- `search_similar_code`, which takes a symbol path.
+
+**Scoring.** The harness's tests score each patch as resolved or not.
+
+**Our agent** is a coder `LlmAgent` with a read-only explorer `AgentTool` that holds the graph
+tools, so that their output stays out of the coder's context. Thinking is on, with
+thinking_budget 4096. One base model serves both agents.
 
 ### 2.2 Lessons
 
-A lesson is a tuple (node id, repository, text of at most 400 characters, outcome, source task,
-source model).
+**Fields.** A lesson has a title (at most 80 characters), a text (at most 400), the outcome of its
+source attempt, its anchor symbol in the source repository, and the anchor's transferable keys.
 
-**How lessons are written.** After every development attempt, the same Gemma model that made the
-attempt reads a compact trace of its tool calls, the scorer's outcome and any error. It then
-writes at most three lessons as JSON. A lesson may be anchored only to a node the attempt
-actually touched; invented anchors are dropped. Lessons from failed attempts are kept and
-labelled as failures.
+**How lessons are written.** After each first-run no-memory attempt, the same model reads:
+- a compact view of its own trace;
+- its own patch;
+- the pass or fail outcome.
 
-**What is never used.** No lesson is written by any other model, and no gold answer is shown to
-the distiller.
+It then writes at most three lessons. Each is anchored to one of the symbols the attempt actually
+touched.
 
-### 2.3 Retrieval arms
+**Where the keys come from.** The keys are computed from the source, never from the model's text.
 
-All arms render a lesson identically. Both memory arms return at most k = 5 lessons within
-1,600 characters, with at most 2 lessons per anchor node.
+**What is never used.** No gold patch or test output is shown, and no other model writes lessons.
 
-- **(a) No memory.** There is no lesson block and no recall tool.
-- **(b) Flat.** BM25 over identifier-aware tokens of the lesson text. The query is the task text,
-  or the agent's `recall_lessons` query.
-- **(c) Graph.** The seeds are the task's nodes, or the top results of `search_similar_code` on
-  the task text. A lesson's score is 1 at a seed, 0.6^h at h ≤ 2 call-graph hops, and
-  0.8 · cos(e_seed, e_anchor) for anchors elsewhere whose node-embedding cosine is at least 0.5.
-  Each lesson keeps its best score over seeds and routes. The route is logged for analysis and
-  hidden from the model.
+### 2.3 Transferable anchor keys
 
-The hyperparameters were fixed before any run and were not tuned on the development tasks.
+For a symbol s, keys(s) contains:
+- api: each external dotted call target, resolved through imports;
+- base: external base classes;
+- deco: decorators;
+- exc: raised exceptions;
+- name: the leaf name;
+- tok: name tokens;
+- motif: the kind with a fan-in/fan-out bucket in the static call graph;
+- kind: the symbol kind.
 
-### 2.4 Agent
+The first five types are *strong*. A lesson is eligible for s only if it shares a strong key with
+keys(s). Its score is Σ w(type) · idf(key) over the shared keys. The weights and idf are fixed in
+the preregistration.
 
-The agent is an ADK `LlmAgent` on one Gemma 4 base model (it-qat-w4a16). A
-`before_agent_callback` injects the task-start lessons into the instruction. A
-`recall_lessons(node_id | query)` tool exposes the same retrieval during the episode.
-Decoding is greedy, and every arm has the same turn and token limits.
+### 2.4 Arms
+
+All memory arms return at most 5 lessons within 1,600 characters, at most 2 from one source task,
+and render them identically.
+- **none:** no skill and no memory section.
+- **text** (ReasoningBank-style): BM25 of the issue text against title and text.
+- **node:** seeds are the symbols the agent names, plus repo symbols the issue names.
+- **node + k-hop:** seeds and their neighbours within 2 hops, score × 0.6 per hop.
+- **shuffled:** node, on a pool whose key sets are permuted across lessons.
+
+### 2.5 Evaluation protocol
+
+**Split.** Leave-one-repo-out: for each development repository, the submission's lessons come from
+the other three.
+
+**Runs.**
+- Headline: none and node, 3 runs each, on 31B and 12B.
+- Exploratory: text, node + k-hop and shuffled, 1 run each.
+
+**Confirmatory test.** For each model, success is averaged over runs per task. We take a
+task-level paired bootstrap 95% CI and an exact sign test (McNemar for a single run), Holm across
+the two models. SUPPORTED requires both the CI above zero and the corrected test to reject.
+
+**Also reported.** Per-run McNemar, the flip rate between identical runs, Hit@1/3/5, steps, model
+calls and tokens.
 
 ## 3. Experiments
 
-### 3.1 Protocol
+### 3.1 Setup
 
-**Models.** Gemma 4 E4B, 12B and 31B, all it-qat-w4a16, served on a Kaggle L4×4 notebook with no
-internet.
-
-**Splits.**
-- **Leave-one-repo-out (primary).** For each held-out repository, memory holds only lessons
-  distilled from the other three, and the code asserts this.
-- **Within-repo, task-disjoint (exploratory).**
-- **Official hidden test set from private repositories.** It returns one aggregate score per
-  submission, so it gets no paired test.
-
-**Preregistered primary.** We test two hypotheses on the mean success difference, paired by
-(model, task) and pooled across models:
-- H1: graph minus flat.
-- H2: graph minus none.
-
-A hypothesis counts as supported only when two conditions hold:
-- the task-clustered paired-bootstrap 95% CI (10,000 resamples) lies above zero, and
-- the Holm-adjusted exact sign test on per-task mean differences rejects at α = 0.05.
-
-Per-model contrasts are exploratory.
+- **Models:** gemma-4-31b-it-qat-w4a16-ct and gemma-4-12b-it-qat-w4a16-ct.
+- **Serving:** vLLM on Kaggle L4×4, max_model_len 32768, `swegemma eval --sandbox subprocess`,
+  internet off.
+- **Budgets:** 100 tool calls and 60 minutes per task.
+- **Throughput:** TODO, measured by the throughput kernel. Tasks per hour at concurrency 8 and 16,
+  median agent minutes, model calls per task, CPUs.
+- **Scope:** TODO. Tasks and arms chosen by the preregistered cut rule.
 
 ### 3.2 Main results
 
-Table 1: success rate on the development tasks, leave-one-repo-out, scored by the harness scorer.
+Table 1: resolved share of development tasks (harness tests), leave-one-repo-out, mean over 3 runs.
 
 <!-- RESULTS-TABLE -->
-| Model | none (a) | flat (b) | graph (c) |
+| Model | none | node | Δ node − none [95% CI] | wins / losses | p (Holm) | verdict |
+|---|---|---|---|---|---|---|
+| gemma-4-31b-it-qat-w4a16-ct | TODO | TODO | TODO | TODO | TODO | TODO |
+| gemma-4-12b-it-qat-w4a16-ct | TODO | TODO | TODO | TODO | TODO | TODO |
+
+Table 2: run-to-run flip rate between identical runs (harness tests, development tasks).
+
+<!-- RESULTS-TABLE -->
+| Model / arm | runs | pairwise flip rate | tasks not identical in all runs |
 |---|---|---|---|
-| gemma-4-e4b-it-qat-w4a16 | TODO | TODO | TODO |
-| gemma-4-12b-it-qat-w4a16 | TODO | TODO | TODO |
-| gemma-4-31b-it-qat-w4a16 | TODO | TODO | TODO |
+| 31b / none | TODO | TODO | TODO |
+| 31b / node | TODO | TODO | TODO |
+| 12b / none | TODO | TODO | TODO |
+| 12b / node | TODO | TODO | TODO |
 
-Table 2: the preregistered contrasts, pooled over models, on the development tasks (LORO),
-scored by the harness scorer. The CI is a paired bootstrap clustered by task.
+### 3.3 When does it help? (exploratory)
+
+Table 3: exploratory contrasts, 1 run, leave-one-repo-out, development tasks, harness tests, no
+multiplicity correction.
 
 <!-- RESULTS-TABLE -->
-| Contrast | mean Δ | 95% CI | wins / losses | sign p (Holm) | verdict |
+| Model | text − none | node − text | node − shuffled | node+k-hop − node |
+|---|---|---|---|---|
+| gemma-4-31b-it-qat-w4a16-ct | TODO | TODO | TODO | TODO |
+| gemma-4-12b-it-qat-w4a16-ct | TODO | TODO | TODO | TODO |
+
+Table 4: node − none by task group, mean over runs, development tasks.
+
+<!-- RESULTS-TABLE -->
+| Model | lesson shown | no lesson shown | none solved 0/3 | 1–2/3 | 3/3 |
 |---|---|---|---|---|---|
-| H1 graph − flat | TODO | TODO | TODO | TODO | TODO |
-| H2 graph − none | TODO | TODO | TODO | TODO | TODO |
+| gemma-4-31b-it-qat-w4a16-ct | TODO | TODO | TODO | TODO | TODO |
+| gemma-4-12b-it-qat-w4a16-ct | TODO | TODO | TODO | TODO | TODO |
 
-Table 3: official hidden-test-set scores, one leaderboard submission per arm. These are
-descriptive only and get no paired test.
+**Key recurrence.** TODO: the share of development tasks whose gold fix site shares a strong key
+with a fix site in another repository. This is computed from gold patches only, before any run.
 
-<!-- RESULTS-TABLE -->
-| Model | none (a) | flat (b) | graph (c) |
-|---|---|---|---|
-| TODO-model | TODO | TODO | TODO |
+### 3.4 Process and cost
 
-### 3.3 Cost
-
-Table 4: cost per arm on the development tasks (LORO). Compute was free, so the measured dollar
+Table 5: process measures per arm, development tasks. Compute was free, so the measured dollar
 cost is 0.
 
 <!-- RESULTS-TABLE -->
-| Model / arm | tokens in / task | tokens out / task | tokens per success | wall h | GPU-h |
-|---|---|---|---|---|---|
-| e4b / none | TODO | TODO | TODO | TODO | TODO |
-| e4b / flat | TODO | TODO | TODO | TODO | TODO |
-| e4b / graph | TODO | TODO | TODO | TODO | TODO |
+| Model / arm | Hit@1 | Hit@5 | tool calls (median) | model calls (median) | tokens / resolved task | agent min (median) |
+|---|---|---|---|---|---|---|
+| 31b / none | TODO | TODO | TODO | TODO | TODO | TODO |
+| 31b / node | TODO | TODO | TODO | TODO | TODO | TODO |
 
-TODO: the 12B and 31B rows, generated by the notebook.
+TODO: the remaining rows, generated by the notebook.
 
-### 3.4 Analysis
+### 3.5 Hidden test set
 
-- **Retrieval routes.** What share of graph-arm lessons came through self, hop and embedding
-  routes. TODO
-- **Same-role probe.** Whether embedding transfer works across repositories. This is the cosine
-  between same-role functions in different repositories, against random pairs. TODO
-- **Run-to-run noise.** The flip rate of 20 repeated no-memory tasks. TODO
-- **Lesson yield.** Lesson yield and drop reasons per model. TODO
-- **Ablations (exploratory).** Neighbourhood-only and embedding-only variants of arm c. TODO
+The leaderboard entry ships lessons from all four development repositories. Its arm is chosen by
+the preregistered rule. Its score is one aggregate per entry, so it is descriptive. TODO.
 
-### 3.5 Threats to validity
+### 3.6 Threats to validity
 
-- **Contamination.** The four development repositories are public and may be in pretraining data.
-  The hidden private-repository scores mitigate this.
-- **Statistical power.** 129 tasks give limited power. We estimated beforehand that the smallest
-  detectable per-model difference is about 10 percentage points.
-- **Cross-repo embeddings.** Cross-repository transfer assumes the node embeddings share one space
-  across repositories; we test this (3.4).
-- **Seeding.** When tasks carry no node ids, graph seeding uses one embedding search that the
-  flat arm lacks.
-- **Prompt length.** H2, unlike H1, does not control for prompt length.
+- **Noise.** Identical runs flip a sizeable share of tasks; Table 2 shows how many. Single-run
+  contrasts are exploratory.
+- **Power.** With about 130 tasks, only large effects reach SUPPORTED.
+- **Protocol confound.** The memory protocol costs steps, so it confounds H1. The shuffled and text
+  arms run the identical protocol.
+- **Static call graph.** Our call graph is coarser than the harness's.
+- **Contamination.** The development repositories are public. The private-repository leaderboard
+  is the mitigation.
 
 ## 4. Related work
 
-**Experience memory for agents.**
-- Reflexion (arXiv:2303.11366) keeps verbal self-reflections for retries of the same task.
+**Experience memory.**
+- Reflexion (arXiv:2303.11366) keeps verbal reflections for retries of the same task.
 - ExpeL (arXiv:2308.10144) extracts insights and retrieves similar past trajectories.
-- Agent Workflow Memory (arXiv:2409.07429) induces reusable workflows for web agents.
-- ReasoningBank (arXiv:2509.25140) distils strategies from the agent's own successes and failures.
-- SWE-Exp (arXiv:2507.23361) builds an experience bank from repair trajectories.
+- Agent Workflow Memory (arXiv:2409.07429) induces workflows for web agents.
+- ReasoningBank (arXiv:2509.25140) distils strategies from self-judged successes and failures; our
+  text arm follows its style.
+- SWE-Exp (arXiv:2507.23361) and subtask-level memory (arXiv:2602.21611) target SWE agents.
+- Agent KB (arXiv:2507.06229) pools experience across frameworks.
+- ExpHarness (arXiv:2605.30712) learns a graph of experiences, not of code.
+- SWE-MeM (arXiv:2606.28434) learns in-episode memory management with RL.
 
-All of these retrieve by text or task similarity. Our flat arm represents that family, and our
-graph arm changes only the key.
+**Does memory help coding agents?** VibeMemBench (arXiv:2609.23570) reports that 11 of 12 pairings
+did not beat memory-off, and that injected verified experience helped 4 of 5 solvers. We start
+from that finding.
 
-**Code graphs for agents.** RepoGraph (arXiv:2410.14684), CodexGraph (arXiv:2408.03910) and
-LocAgent (arXiv:2503.09089) use repository graphs to retrieve *code*. Bhola et al.
-(arXiv:2606.22417) add a structural index without memory. None of them store experience on graph
-nodes.
+**Code graphs.**
+- RepoGraph (arXiv:2410.14684), CodexGraph (arXiv:2408.03910) and LocAgent (arXiv:2503.09089)
+  retrieve *code* through repository graphs.
+- CGM (arXiv:2505.16901) trains the graph into the model.
+- Prometheus (arXiv:2507.19942) builds a graph within the task.
+- Repository Memory (arXiv:2510.01003) gives LocAgent memory mined from commit history.
+- EA-Graph (arXiv:2608.04278) anchors verification claims to artifacts.
 
-**Memory anchored to code artifacts.**
-- EA-Graph (arXiv:2608.04278) is the closest prior work. It anchors verification claims to
-  artifacts and reports that anchored memory beat prose notes for a smaller model on synthetic
-  repositories. We differ in three ways:
-  - we anchor task-solving lessons rather than claims for staleness detection;
-  - we retrieve through call-graph neighbourhoods and node embeddings;
-  - we require transfer to unseen repositories.
-- Wang et al. (arXiv:2510.01003) give a localization agent memory mined from human commit
-  history.
+None of them keys an agent's own lessons by code-graph properties that transfer to unseen
+repositories.
 
-**General memory systems and benchmarks.**
-- MemGPT (arXiv:2310.08560), Mem0 (arXiv:2504.19413), Zep (arXiv:2501.13956) and Hindsight
-  (arXiv:2512.12818) target conversational memory. LongMemEval (arXiv:2410.10813) benchmarks it.
-- VibeMemBench (arXiv:2609.23570) finds that most existing memory systems do not beat no memory
-  for coding agents. That is why we compare against both a no-memory arm and a flat-memory arm.
-
-**What is new.** To our knowledge, this is the first work to:
-- use code-graph nodes as the keys of self-distilled experience memory;
-- retrieve through call-graph neighbourhoods and node embeddings, with transfer to unseen
-  repositories;
-- test this against text-keyed memory at a fixed budget across three sizes of one open model
-  family.
+**Training small SWE agents.** SWE-Gym (arXiv:2412.21139), SWE-smith (arXiv:2504.21798) and DeepSWE
+(Agentica and Together AI, 2025) train small models; that is complementary to memory.
 
 ## 5. Conclusion
 
-TODO, after the analysis. One paragraph that restates the verdict for H1 and H2 in the
-preregistered words, states the cost, and gives the main limitation.
+TODO, after the analysis. One paragraph that does four things:
+- restates each H1 verdict in the preregistered words;
+- says when memory helped and when it did not, from Tables 3 and 4;
+- gives the cost;
+- names the main limitation.
 
-**Reproducibility.** The notebook is TODO-kaggle-notebook-url. The code is TODO-public-repo-url
-(Apache 2.0). The preregistration is DESIGN.md at commit TODO-sha.
+**Reproducibility.**
+- Kernels and notebook: TODO-kaggle-urls.
+- Code: TODO-public-repo-url (Apache 2.0).
+- Preregistration: PREREG.md, sha256 TODO-sha, at commit TODO-commit.

@@ -144,3 +144,73 @@ def markdown_table(rows: Sequence[Mapping], cols: Sequence[str]) -> str:
         return str(v)
     head = "| " + " | ".join(cols) + " |\n|" + "---|" * len(cols) + "\n"
     return head + "\n".join("| " + " | ".join(fmt(r.get(c)) for c in cols) + " |" for r in rows)
+
+
+def mcnemar_exact(x: Mapping[str, int], y: Mapping[str, int]) -> dict:
+    """Exact two-sided McNemar test on binary outcomes paired by task (same task set required).
+    b = x wins (x=1, y=0), c = y wins. Equivalent to the exact sign test on the discordant pairs."""
+    if set(x) != set(y):
+        raise ValueError("McNemar needs the same tasks in both arms")
+    b = sum(1 for t in x if x[t] == 1 and y[t] == 0)
+    c = sum(1 for t in x if x[t] == 0 and y[t] == 1)
+    st = sign_test([1] * b + [-1] * c)
+    return {"n": len(x), "b": b, "c": c, "p": st["p"]}
+
+
+def run_matrix(rows: Iterable[Mapping], model: str, arm: str) -> dict[int, dict[str, int]]:
+    """{run: {task_id: success}} for one (model, arm)."""
+    out: dict[int, dict[str, int]] = defaultdict(dict)
+    for r in rows:
+        if r["model"] == model and r["arm"] == arm:
+            out[int(r["run"])][r["task_id"]] = int(r["success"])
+    return dict(out)
+
+
+def flip_rates(runs: Mapping[int, Mapping[str, int]]) -> dict:
+    """Run-to-run noise among identical runs: mean pairwise flip rate over the common tasks,
+    and the share of tasks whose outcome is not the same in every run."""
+    ids = sorted(runs)
+    if len(ids) < 2:
+        return {"runs": len(ids), "n": 0, "pairwise": None, "any_flip": None}
+    common = sorted(set.intersection(*(set(runs[i]) for i in ids)))
+    pairs = [(a, b) for i, a in enumerate(ids) for b in ids[i + 1:]]
+    pw = [sum(runs[a][t] != runs[b][t] for t in common) / len(common) for a, b in pairs] if common else []
+    anyf = sum(len({runs[i][t] for i in ids}) > 1 for t in common)
+    return {"runs": len(ids), "n": len(common), "pairwise": sum(pw) / len(pw) if pw else None,
+            "any_flip": anyf / len(common) if common else None}
+
+
+def mean_over_runs(rows: Iterable[Mapping], metric: str = "success") -> list[dict]:
+    """Collapse runs: one row per (model, arm, task) whose metric is the mean over its runs."""
+    g = defaultdict(list)
+    for r in rows:
+        if r.get(metric) is not None:
+            g[(r["model"], r["arm"], r["task_id"])].append(float(r[metric]))
+    return [{"model": m, "arm": a, "task_id": t, metric: sum(v) / len(v), "n_runs": len(v)}
+            for (m, a, t), v in sorted(g.items())]
+
+
+def process_table(rows: Iterable[Mapping]) -> list[dict]:
+    """Per (model, arm): runs, success, Hit@k, tool calls, model calls, tokens, recalls."""
+    g = defaultdict(list)
+    for r in rows:
+        g[(r["model"], r["arm"])].append(r)
+    out = []
+    for (model, arm), rs in sorted(g.items()):
+        def mean(k):
+            v = [x[k] for x in rs if x.get(k) is not None]
+            return sum(v) / len(v) if v else None
+
+        def median(k):
+            v = sorted(x[k] for x in rs if x.get(k) is not None)
+            return (v[(len(v) - 1) // 2] + v[len(v) // 2]) / 2 if v else None
+        succ = sum(x["success"] for x in rs)
+        tok = sum((x.get("tokens_in") or 0) + (x.get("tokens_out") or 0) for x in rs)
+        out.append({"model": model, "arm": arm, "runs": len({x["run"] for x in rs}), "n": len(rs),
+                    "success_rate": succ / len(rs), "hit@1": mean("hit@1"), "hit@3": mean("hit@3"),
+                    "hit@5": mean("hit@5"), "tool_calls_median": median("tool_calls"),
+                    "model_calls_median": median("model_calls"), "tokens_in_mean": mean("tokens_in"),
+                    "tokens_out_mean": mean("tokens_out"), "tokens_per_success": tok / succ if succ else None,
+                    "wall_min_median": (median("wall_s") or 0) / 60, "recalls_mean": mean("recalls"),
+                    "lessons_shown_mean": mean("lessons_shown")})
+    return out

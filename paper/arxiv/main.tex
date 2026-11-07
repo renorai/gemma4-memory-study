@@ -5,7 +5,7 @@
 \usepackage{amsmath,booktabs,hyperref,natbib,xcolor}
 \newcommand{\TODO}[1]{\textbf{\textcolor{red}{TODO: #1}}}
 
-\title{Memory Anchored to the Code Graph Helps Small Coding Agents?}
+\title{When Does Transferable Node-Anchored Memory Help Small Coding Agents?}
 \author{TODO authors}
 \date{}
 
@@ -13,67 +13,71 @@
 \maketitle
 
 \begin{abstract}
-Experience memory lets an agent reuse lessons from earlier attempts, but it is usually retrieved
-by text similarity. We anchor each lesson to a node of the repository's AST call graph and
-retrieve it through the call-graph neighbourhood and precomputed node embeddings, which lets a
-lesson written on one repository reach similar code in an unseen one. Each Gemma~4 model (E4B,
-12B, 31B) distils lessons only from its own attempts. With the lesson pool, top-$k$ and context
-budget held fixed, we compare no memory, flat text-similarity memory and graph-anchored memory,
-leave-one-repo-out on the 129 development tasks of the Gemma~4 Developer Agent harness, under a
-decision rule preregistered before any run. \TODO{verdict, pooled difference and 95\% CI}
+Experience memory for coding agents rarely beats no memory: on VibeMemBench, 11 of 12 solver and
+memory-system pairings did not~\citep{fan2026vibemembench}. We ask \emph{when} memory helps small
+open models when the test repositories are private and unseen. Lessons that Gemma~4 writes after
+its own runs are anchored to call-graph nodes but keyed by \emph{transferable anchor keys}
+(external APIs called, leaf name, external decorators and bases, raised exceptions, fan-in/out
+shape) that recur across codebases, recomputed from source by a standard-library skill script
+inside a declarative agent. Leave-one-repo-out on the 129 development tasks of the Gemma~4
+Developer Agent harness, on Gemma~4 31B and 12B, we compare no memory with node-anchored memory
+(three runs each), and explore ReasoningBank-style text keys, a 2-hop neighbourhood and a
+shuffled-key control, under a plan preregistered before any run. \TODO{verdicts, differences,
+95\% CIs and flip rates per model}
 \end{abstract}
 
 \section{Introduction}
 Reflexion~\citep{shinn2023reflexion}, ExpeL~\citep{zhao2023expel}, Agent Workflow
-Memory~\citep{wang2024awm} and ReasoningBank~\citep{ouyang2025reasoningbank} keep lessons from an
-agent's own trajectories and retrieve them by text or task similarity. For code, the relevant key
-is the code a task touches. \TODO{motivation paragraph; contributions list as in WRITEUP.md}
+Memory~\citep{wang2024awm}, ReasoningBank~\citep{ouyang2025reasoningbank} and
+SWE-Exp~\citep{chen2025sweexp} keep lessons from an agent's own trajectories and retrieve them by
+text or task similarity. Node identities learned on one repository do not exist in another; the
+properties of a node often do. \TODO{motivation paragraph; contributions list as in WRITEUP.md}
 
 \section{Method}
 \subsection{Lessons}
-A lesson is $\ell = (v, r, t, o, \tau, m)$: anchor node $v$, repository $r$, text $t$
-($\le 400$ characters), outcome $o \in \{\text{success}, \text{failure}\}$, source task $\tau$
-and source model $m$. The model $m$ that made the attempt writes $\ell$; $v$ must be a node the
-attempt touched.
+A lesson is $\ell = (\mathit{title}, t, o, K, a, r, \tau, m)$: title, text $t$ ($\le 400$
+characters), outcome $o \in \{\text{success}, \text{failure}\}$, key set $K$, anchor symbol $a$ in
+source repository $r$, source task $\tau$ and source model $m$. The model $m$ that made the attempt
+writes $t$ and picks $a$ among the symbols the attempt touched; $K = \mathrm{keys}(a)$ is computed
+from source.
 
-\subsection{Graph-anchored retrieval}
-Let $S$ be the task's seed nodes, $d(s, v)$ the call-graph hop distance and $e_v$ the harness's
-node embedding. A lesson anchored at $v$ scores
+\subsection{Transferable keys and retrieval}
+For a symbol $s$, $\mathrm{keys}(s)$ holds typed keys (api, base, deco, exc, name, tok, motif,
+kind); the first five types are strong. With seeds $S$ and, for the $k$-hop arm, the static
+call-graph distance $d$, a lesson scores
 \begin{equation}
-  \mathrm{score}(\ell) = \max_{s \in S}
-  \begin{cases}
-    \gamma^{d(s,v)} & d(s,v) \le H,\\
-    \lambda \cos(e_s, e_v) & d(s,v) > H \text{ and } \cos(e_s, e_v) \ge \theta,
-  \end{cases}
+  \mathrm{score}(\ell) = \max_{s \in S,\ v:\ d(s,v) \le H} \gamma^{d(s,v)}
+  \sum_{\kappa \in K \cap \mathrm{keys}(v)} w(\kappa)\,\mathrm{idf}(\kappa)
+  \quad\text{if } K \cap \mathrm{keys}(v) \text{ has a strong key},
 \end{equation}
-with $\gamma = 0.6$, $H = 2$, $\lambda = 0.8$ and $\theta = 0.5$, all fixed before any run.
-The top $k = 5$ lessons are kept under a 1{,}600-character budget, with at most two per anchor.
-The flat arm uses BM25 over the lesson text with the same $k$, budget and rendering.
+with $H = 0$ (node) or $H = 2$, $\gamma = 0.6$ (node$+k$-hop); weights and all other parameters
+are fixed in the preregistration. The top $k = 5$ lessons are kept under a 1{,}600-character
+budget, at most two per source task. The text arm uses BM25 over title and text with the same
+$k$, budget and rendering; the shuffled control permutes $K$ across lessons.
 
 \section{Experiments}
 \subsection{Protocol}
-\TODO{models, LORO folds, hidden test set, preregistered rule (paired bootstrap clustered by task,
-exact sign test, Holm)}
+\TODO{models (31B, 12B), LORO folds, 3 runs on none and node, exploratory arms, preregistered
+rule (task-level paired bootstrap, exact sign/McNemar test, Holm), flip rate, Hit@k}
 
 \subsection{Results}
 \begin{table}[h]
 \centering
-\caption{Success rate, development tasks, leave-one-repo-out, harness scorer.}
+\caption{Resolved share, development tasks, leave-one-repo-out, harness tests, mean over 3 runs.}
 \begin{tabular}{lccc}
 \toprule
-Model & none & flat & graph \\
+Model & none & node & $\Delta$ [95\% CI] \\
 \midrule
-gemma-4-e4b-it-qat-w4a16 & \TODO{} & \TODO{} & \TODO{} \\
-gemma-4-12b-it-qat-w4a16 & \TODO{} & \TODO{} & \TODO{} \\
-gemma-4-31b-it-qat-w4a16 & \TODO{} & \TODO{} & \TODO{} \\
+gemma-4-31b-it-qat-w4a16-ct & \TODO{} & \TODO{} & \TODO{} \\
+gemma-4-12b-it-qat-w4a16-ct & \TODO{} & \TODO{} & \TODO{} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\TODO{Table: H1 and H2 contrasts; Table: hidden-test leaderboard scores; Table: cost}
+\TODO{Tables: flip rates; exploratory contrasts; moderators; process and cost; hidden test}
 
 \subsection{Threats to validity}
-\TODO{as in WRITEUP.md section 3.5}
+\TODO{as in WRITEUP.md section 3.6}
 
 \section{Related work}
 Code graphs are used to retrieve code by RepoGraph~\citep{ouyang2024repograph},
@@ -85,7 +89,12 @@ keeps an experience bank of repair attempts. General memory systems include
 MemGPT~\citep{packer2023memgpt}, Mem0~\citep{chhikara2025mem0}, Zep~\citep{rasmussen2025zep} and
 Hindsight~\citep{latimer2025hindsight}, evaluated on benchmarks such as
 LongMemEval~\citep{wu2024longmemeval}; VibeMemBench~\citep{fan2026vibemembench} finds most memory
-systems do not beat no memory for coding agents.
+systems do not beat no memory for coding agents. ExpHarness~\citep{feng2026expharness} learns a
+graph of experiences, not of code; SWE-MeM~\citep{gao2026swemem} learns in-episode memory with RL;
+subtask-level memory~\citep{shen2026subtask} and Agent KB~\citep{tang2025agentkb} target SWE agents.
+CGM~\citep{tao2025cgm} trains the code graph into the model and Prometheus~\citep{pan2025prometheus}
+builds one within the task. SWE-Gym~\citep{pan2024swegym}, SWE-smith~\citep{yang2025swesmith} and
+DeepSWE~\citep{luo2025deepswe} train small SWE agents.
 
 \section{Conclusion}
 \TODO{verdict in the preregistered words, cost, main limitation}

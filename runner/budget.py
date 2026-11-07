@@ -1,33 +1,70 @@
-"""Budget planner: projects wall time from MEASURED throughput before a long run starts.
+"""Compute planner: arithmetic on MEASURED throughput (kernels/throughput.py), never a guess.
 
-The notebook measures, per model, the mean wall seconds of one episode on a small
-calibration slice, then calls `plan()`. The run refuses to start when the projection
-exceeds the limit. Nothing here is a measurement; it is arithmetic on measurements.
+Cut order, fixed in PREREG.md section 7 before any arm run: exploratory arms on 12B, then
+exploratory arms on 31B, then tasks (stratified by repo, down to MIN_TASKS). Headline runs
+(3 x none, 3 x node, per model) are never cut.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+import hashlib
+from dataclasses import dataclass, field
+
+HEADLINE_RUNS = 6            # 3 x none + 3 x node
+EXPLORATORY_ARMS = ("text", "node_khop", "shuffled")
+MIN_TASKS = 48
+MODELS = ("gemma-4-31b-it-qat-w4a16-ct", "gemma-4-12b-it-qat-w4a16-ct")
 
 
-@dataclass(frozen=True)
-class Phase:
-    name: str
-    episodes: int
-    sec_per_episode: float   # measured on the calibration slice, already divided by concurrency
+@dataclass
+class Scope:
+    n_tasks: int
+    exploratory: dict = field(default_factory=dict)   # model -> tuple of arms
+    hours: float = 0.0
+    fits: bool = True
+    cuts: list = field(default_factory=list)
 
 
-def research_phases(model: str, n_tasks: int, sec_ep: float, sec_distill: float,
-                    arms_with_memory: int = 2) -> list[Phase]:
-    return [
-        Phase(f"{model}:none(baseline)", n_tasks, sec_ep),
-        Phase(f"{model}:distill", n_tasks, sec_distill),
-        Phase(f"{model}:memory-arms", n_tasks * arms_with_memory, sec_ep),
-    ]
+def episodes(n_tasks, n_exploratory):
+    return n_tasks * (HEADLINE_RUNS + n_exploratory)
 
 
-def plan(phases: list[Phase], limit_h: float = 11.0) -> dict:
-    """limit_h defaults to 11 h: the 12 h notebook budget minus 1 h for load and headroom."""
-    rows = [{"phase": p.name, "episodes": p.episodes, "hours": p.episodes * p.sec_per_episode / 3600}
-            for p in phases]
-    total = sum(r["hours"] for r in rows)
-    return {"rows": rows, "total_h": total, "limit_h": limit_h, "fits": total <= limit_h}
+def hours_needed(n_tasks, exploratory, tasks_per_hour, distill_h_per_model=0.5):
+    """tasks_per_hour: {model: measured agent episodes per wall-hour at the chosen concurrency}."""
+    return sum(episodes(n_tasks, len(exploratory.get(m, ()))) / tasks_per_hour[m] + distill_h_per_model
+               for m in tasks_per_hour)
+
+
+def choose_scope(tasks_per_hour, hours_available, n_all=129, min_tasks=MIN_TASKS):
+    models = [m for m in MODELS if m in tasks_per_hour]
+    s = Scope(n_all, {m: EXPLORATORY_ARMS for m in models})
+    s.hours = hours_needed(s.n_tasks, s.exploratory, tasks_per_hour)
+    for m in reversed(models):                 # 12B first, then 31B
+        if s.hours <= hours_available:
+            break
+        s.exploratory[m] = ()
+        s.cuts.append(f"exploratory arms dropped for {m}")
+        s.hours = hours_needed(s.n_tasks, s.exploratory, tasks_per_hour)
+    while s.hours > hours_available and s.n_tasks - 4 >= min_tasks:
+        s.n_tasks -= 4
+        s.hours = hours_needed(s.n_tasks, s.exploratory, tasks_per_hour)
+    if s.n_tasks < n_all:
+        s.cuts.append(f"tasks cut to {s.n_tasks} (stratified by repo)")
+    s.fits = s.hours <= hours_available
+    return s
+
+
+def stratified_subset(tasks, n):
+    """Deterministic, outcome-blind: per repo, order tasks by sha256(task_id); take round-robin
+    across repos (repos in name order) until n tasks."""
+    by = {}
+    for t in tasks:
+        by.setdefault(t.repo, []).append(t)
+    for r in by:
+        by[r].sort(key=lambda t: hashlib.sha256(t.task_id.encode()).hexdigest())
+    out, i = [], 0
+    while len(out) < min(n, len(tasks)):
+        for r in sorted(by):
+            if i < len(by[r]) and len(out) < n:
+                out.append(by[r][i])
+        i += 1
+    return out
