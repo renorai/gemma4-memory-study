@@ -1,0 +1,14 @@
+{
+  "arm": "graph",
+  "lessons_path": "skills/graph_memory/lessons.jsonl",
+  "retrieval": {
+    "k": 5,
+    "char_budget": 1600,
+    "per_node_cap": 2,
+    "n_seeds": 5,
+    "max_hops": 2,
+    "hop_decay": 0.6,
+    "emb_threshold": 0.5,
+    "emb_weight": 0.8
+  }
+}

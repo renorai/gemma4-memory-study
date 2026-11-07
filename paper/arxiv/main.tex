@@ -1,0 +1,95 @@
+% arXiv-style skeleton. Mirrors ../WRITEUP.md; numbers come only from the notebook.
+% Build: latexmk -pdf main.tex   (not built in CI; no TeX toolchain is assumed)
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,booktabs,hyperref,natbib,xcolor}
+\newcommand{\TODO}[1]{\textbf{\textcolor{red}{TODO: #1}}}
+
+\title{Memory Anchored to the Code Graph Helps Small Coding Agents?}
+\author{TODO authors}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Experience memory lets an agent reuse lessons from earlier attempts, but it is usually retrieved
+by text similarity. We anchor each lesson to a node of the repository's AST call graph and
+retrieve it through the call-graph neighbourhood and precomputed node embeddings, which lets a
+lesson written on one repository reach similar code in an unseen one. Each Gemma~4 model (E4B,
+12B, 31B) distils lessons only from its own attempts. With the lesson pool, top-$k$ and context
+budget held fixed, we compare no memory, flat text-similarity memory and graph-anchored memory,
+leave-one-repo-out on the 129 development tasks of the Gemma~4 Developer Agent harness, under a
+decision rule preregistered before any run. \TODO{verdict, pooled difference and 95\% CI}
+\end{abstract}
+
+\section{Introduction}
+Reflexion~\citep{shinn2023reflexion}, ExpeL~\citep{zhao2023expel}, Agent Workflow
+Memory~\citep{wang2024awm} and ReasoningBank~\citep{ouyang2025reasoningbank} keep lessons from an
+agent's own trajectories and retrieve them by text or task similarity. For code, the relevant key
+is the code a task touches. \TODO{motivation paragraph; contributions list as in WRITEUP.md}
+
+\section{Method}
+\subsection{Lessons}
+A lesson is $\ell = (v, r, t, o, \tau, m)$: anchor node $v$, repository $r$, text $t$
+($\le 400$ characters), outcome $o \in \{\text{success}, \text{failure}\}$, source task $\tau$
+and source model $m$. The model $m$ that made the attempt writes $\ell$; $v$ must be a node the
+attempt touched.
+
+\subsection{Graph-anchored retrieval}
+Let $S$ be the task's seed nodes, $d(s, v)$ the call-graph hop distance and $e_v$ the harness's
+node embedding. A lesson anchored at $v$ scores
+\begin{equation}
+  \mathrm{score}(\ell) = \max_{s \in S}
+  \begin{cases}
+    \gamma^{d(s,v)} & d(s,v) \le H,\\
+    \lambda \cos(e_s, e_v) & d(s,v) > H \text{ and } \cos(e_s, e_v) \ge \theta,
+  \end{cases}
+\end{equation}
+with $\gamma = 0.6$, $H = 2$, $\lambda = 0.8$ and $\theta = 0.5$, all fixed before any run.
+The top $k = 5$ lessons are kept under a 1{,}600-character budget, with at most two per anchor.
+The flat arm uses BM25 over the lesson text with the same $k$, budget and rendering.
+
+\section{Experiments}
+\subsection{Protocol}
+\TODO{models, LORO folds, hidden test set, preregistered rule (paired bootstrap clustered by task,
+exact sign test, Holm)}
+
+\subsection{Results}
+\begin{table}[h]
+\centering
+\caption{Success rate, development tasks, leave-one-repo-out, harness scorer.}
+\begin{tabular}{lccc}
+\toprule
+Model & none & flat & graph \\
+\midrule
+gemma-4-e4b-it-qat-w4a16 & \TODO{} & \TODO{} & \TODO{} \\
+gemma-4-12b-it-qat-w4a16 & \TODO{} & \TODO{} & \TODO{} \\
+gemma-4-31b-it-qat-w4a16 & \TODO{} & \TODO{} & \TODO{} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\TODO{Table: H1 and H2 contrasts; Table: hidden-test leaderboard scores; Table: cost}
+
+\subsection{Threats to validity}
+\TODO{as in WRITEUP.md section 3.5}
+
+\section{Related work}
+Code graphs are used to retrieve code by RepoGraph~\citep{ouyang2024repograph},
+CodexGraph~\citep{liu2024codexgraph}, LocAgent~\citep{chen2025locagent} and
+\citet{bhola2026codeisntmemory}; coding agents follow SWE-agent~\citep{yang2024sweagent}.
+EA-Graph~\citep{hsu2026eagraph} anchors verification claims to artifacts and is the closest prior
+work; \citet{wang2025repomemory} mine commit history for memory, and SWE-Exp~\citep{chen2025sweexp}
+keeps an experience bank of repair attempts. General memory systems include
+MemGPT~\citep{packer2023memgpt}, Mem0~\citep{chhikara2025mem0}, Zep~\citep{rasmussen2025zep} and
+Hindsight~\citep{latimer2025hindsight}, evaluated on benchmarks such as
+LongMemEval~\citep{wu2024longmemeval}; VibeMemBench~\citep{fan2026vibemembench} finds most memory
+systems do not beat no memory for coding agents.
+
+\section{Conclusion}
+\TODO{verdict in the preregistered words, cost, main limitation}
+
+\bibliographystyle{plainnat}
+\bibliography{refs}
+\end{document}

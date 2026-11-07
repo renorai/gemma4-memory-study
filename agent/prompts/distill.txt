@@ -1,0 +1,22 @@
+You just finished an attempt at a coding task in a Python repository. Write short lessons that would help YOU on a DIFFERENT future task touching the same code.
+
+Task:
+{{TASK}}
+
+Outcome of the attempt (from the harness scorer): {{OUTCOME}}
+Error, if any: {{ERROR}}
+
+Your tool calls (tool(args) -> nodes returned):
+{{STEPS}}
+
+Code-graph nodes you touched (you may ONLY anchor a lesson to one of these ids):
+{{ANCHORS}}
+
+Rules:
+- At most {{MAX_LESSONS}} lessons, each at most {{MAX_CHARS}} characters.
+- A lesson says something durable about the code at its node or about how to investigate it: what the function really does, a non-obvious caller or callee, a trap you fell into, a tool sequence that worked.
+- Do NOT restate this task's answer. A lesson must be useful for a different task.
+- If the attempt failed, say what to do differently. If nothing is worth keeping, return [].
+
+Answer with a JSON array only, for example:
+[{"node_id": "<one id from the list>", "lesson": "<text>"}]
