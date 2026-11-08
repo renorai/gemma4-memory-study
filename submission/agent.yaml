@@ -13,15 +13,13 @@ generate_content_config:            # VERIFY: field names
   thinking_config:
     include_thoughts: true          # vLLM: include_thoughts + thinking_budget, not thinking_level
     thinking_budget: 4096           # harness default; thinking off roughly halved one public score
-tools:
-  - name: run_command
-  - name: read_file
-  - name: write_file
-  - name: edit_file
-  - name: get_status
-  - name: submit_patch
-  - name: AgentTool                 # VERIFY: AgentTool config syntax
-    args:
-      agent:
-        config_path: sub_agents/explorer.yaml
+tools:                              # adk_submission schema: tool names as strings, agents as agent_tool
+  - run_command
+  - read_file
+  - write_file
+  - edit_file
+  - get_status
+  - submit_patch
+  - agent_tool:
+      config_path: sub_agents/explorer.yaml
       skip_summarization: true      # keeps exploration out of the coder's context

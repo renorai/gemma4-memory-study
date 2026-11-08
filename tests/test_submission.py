@@ -162,7 +162,7 @@ class ValidatorRules(unittest.TestCase):
             self.assertIn(msg, self.errors(), bad)
         a.write_text(base)
         y = self.root / "sub_agents" / "explorer.yaml"
-        y.write_text(y.read_text() + "  - name: AgentTool\n    args:\n      agent:\n        config_path: ../../x.yaml\n")
+        y.write_text(y.read_text() + "  - agent_tool:\n      config_path: ../../x.yaml\n")
         self.assertIn("traversal", self.errors())
 
     def test_symlink_escape(self):

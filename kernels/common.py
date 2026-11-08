@@ -6,7 +6,9 @@ Input discovery is by content, not by slug, because the operator names the datas
     harness    the competition dataset 'gemma-4-developer-agent' (tasks.jsonl, snapshots/,
                and the swegemma package, as a wheel or a source tree)
     model      a directory with config.json whose path contains the model alias stem
-    wheels     any directory of *.whl files (vLLM and its dependencies for this image)
+               (Kaggle Models: google/gemma-4/Other/<alias>/2)
+    wheels     the official wheelhouse metric/gemma-4-developer-agent-wheelhouse (vLLM 0.19.1,
+               swegemma, adk-submission, google-adk), installed the way the starter notebook does
 """
 from __future__ import annotations
 
@@ -23,6 +25,22 @@ INPUT = Path(os.environ.get("KAGGLE_INPUT", "/kaggle/input"))
 WORK = Path(os.environ.get("KAGGLE_WORK", "/kaggle/working"))
 PORT = 8000
 API = f"http://127.0.0.1:{PORT}/v1"
+
+# Same environment as the official Getting Started notebook (offline vLLM + LiteLLM routing).
+for _k, _v in {"TRANSFORMERS_NO_TF": "1", "TRANSFORMERS_NO_FLAX": "1", "TRANSFORMERS_OFFLINE": "1",
+               "VLLM_NO_USAGE_STATS": "1", "VLLM_WORKER_MULTIPROC_METHOD": "spawn",
+               "VLLM_ENGINE_READY_TIMEOUT_S": "1200", "VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS": "1",
+               "NCCL_DEBUG": "WARN", "LITELLM_LOCAL_MODEL_COST_MAP": "True", "LITELLM_TELEMETRY": "False",
+               "LITELLM_LOG": "WARNING", "OPENAI_API_KEY": "EMPTY", "LOCAL_API_KEY": "EMPTY",
+               "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True", "OTEL_SDK_DISABLED": "true",
+               "OTEL_PYTHON_DISABLED": "true"}.items():
+    os.environ.setdefault(_k, _v)
+
+# Model-specific vLLM flags from HARNESS_README.md section 3.1 (MODEL_VLLM_EXTRA_ARGS).
+MODEL_VLLM_EXTRA_ARGS = {
+    "gemma-4-12b-it-qat-w4a16-ct": ("--hf-overrides",
+                                    '{"architectures": ["Gemma4ForCausalLM"], "model_type": "gemma4"}'),
+}
 
 
 def log(*a):
@@ -50,46 +68,65 @@ def find_model(alias):
     return sorted(hits, key=lambda p: len(str(p)))[0]
 
 
-def pip_offline(*pkgs):
-    links = sorted({str(Path(p).parent) for p in glob.glob(str(INPUT / "**" / "*.whl"), recursive=True)})
-    cmd = [sys.executable, "-m", "pip", "install", "--no-index", "-q"]
-    for l in links:
-        cmd += ["--find-links", l]
-    log("pip", " ".join(pkgs), "from", len(links), "wheel dirs")
-    subprocess.run(cmd + list(pkgs), check=True)
-
-
-def ensure_swegemma(comp):
-    if subprocess.run(["swegemma", "--help"], capture_output=True).returncode == 0:
-        return
-    src = [Path(p).parent for p in glob.glob(str(comp / "**" / "pyproject.toml"), recursive=True)]
-    if any(glob.glob(str(INPUT / "**" / "swegemma*.whl"), recursive=True)):
-        pip_offline("swegemma")
-    elif src:
-        subprocess.run([sys.executable, "-m", "pip", "install", "--no-index", "--no-deps", "-q",
-                        str(sorted(src, key=lambda p: len(str(p)))[0])], check=True)
-    else:
-        raise SystemExit("swegemma not found: no wheel and no source tree in the competition data")
+def install_wheelhouse():
+    """Install the official wheelhouse exactly as the starter notebook does: every wheel, no deps,
+    force-reinstall, after restoring the '+cu128' local versions Kaggle strips from file names and
+    removing broken cutlass .pth hooks."""
+    hits = sorted(glob.glob(str(INPUT / "**" / "adk_submission-*.whl"), recursive=True))
+    if not hits:
+        raise SystemExit("wheelhouse not attached: no adk_submission-*.whl under /kaggle/input "
+                         "(attach metric/gemma-4-developer-agent-wheelhouse)")
+    house = Path(hits[0]).parent
+    for pat in ("/usr/local/lib/python*/dist-packages/*cutlass*.pth",
+                "/usr/local/lib/python*/site-packages/*cutlass*.pth"):
+        for pth in glob.glob(pat):
+            try:
+                os.unlink(pth)
+            except OSError:
+                pass
+    tmp = Path("/tmp/wheelhouse")
+    tmp.mkdir(parents=True, exist_ok=True)
+    for w in house.glob("*.whl"):
+        if "cutlass" in w.name.lower():
+            continue
+        name = w.name.replace("cu128", "+cu128") if ("cu128" in w.name and "+" not in w.name) else w.name
+        if not (tmp / name).exists():
+            os.symlink(w, tmp / name)
+    wheels = sorted(str(w) for w in tmp.glob("*.whl"))
+    log("installing", len(wheels), "wheels from", house)
+    subprocess.run([sys.executable, "-m", "pip", "install", "-q", "--no-deps", "--force-reinstall", *wheels],
+                   check=True)
+    import importlib
+    importlib.invalidate_caches()
 
 
 def start_vllm(model_dir, alias, extra=()):
-    """vLLM OpenAI server on 4 x L4, max_model_len 32768 (the harness's serving limit).
-    VLLM_EXTRA_ARGS adds flags (e.g. tool-call and reasoning parsers) without editing code:
-    VERIFY the right ones for Gemma 4 against HARNESS_README.md before the first long run."""
-    try:
-        import vllm  # noqa: F401
-    except ImportError:
-        pip_offline("vllm")
-    cmd = [sys.executable, "-m", "vllm.entrypoints.openai.api_server", "--model", str(model_dir),
-           "--served-model-name", alias, "--tensor-parallel-size", "4", "--max-model-len", "32768",
-           "--port", str(PORT), "--gpu-memory-utilization", "0.92"]
-    cmd += list(extra) + os.environ.get("VLLM_EXTRA_ARGS", "").split()
+    """vLLM OpenAI server with the scorer's settings (HARNESS_README.md 3.1 and the starter
+    notebook): built by adk_submission.VllmServer.build_cmd/build_env so the flags match the
+    harness exactly (gemma4 tool-call and reasoning parsers, reasoning-config, max_model_len
+    32768, gpu util 0.90, no scheduler full-ISL reserve), plus --served-model-name so the CLI's
+    `openai/<alias>` route resolves. VLLM_EXTRA_ARGS still adds flags without editing code."""
+    from adk_submission import VllmConfig, VllmServer
+    n_gpu = len([g for g in cpu_info()["gpus"] if g.strip()])
+    tp = 4 if n_gpu >= 4 else (2 if n_gpu >= 2 else 1)
+    cfg = VllmConfig(model=str(model_dir), port=PORT, host="127.0.0.1", tool_call_parser="gemma4",
+                     reasoning_parser="gemma4", max_model_len=32768, dtype="bfloat16",
+                     gpu_memory_utilization=0.90, enable_auto_tool_choice=True, enable_lora=False,
+                     max_loras=1, max_lora_rank=128, scheduler_reserve_full_isl=False,
+                     tensor_parallel_size=tp, startup_timeout=60 * 20,
+                     extra_args=(*MODEL_VLLM_EXTRA_ARGS.get(alias, ()), "--served-model-name", alias,
+                                 *extra, *os.environ.get("VLLM_EXTRA_ARGS", "").split()))
+    srv = VllmServer(cfg)
+    cmd, env = srv.build_cmd(), srv.build_env()
     logf = open(WORK / "vllm.log", "w")
-    log("starting vLLM:", " ".join(cmd))
-    proc = subprocess.Popen(cmd, stdout=logf, stderr=subprocess.STDOUT)
+    log(f"starting vLLM (tp={tp}, {n_gpu} GPUs):", " ".join(cmd))
+    proc = subprocess.Popen(cmd, stdout=logf, stderr=subprocess.STDOUT, env=env)
     t0 = time.time()
     while time.time() - t0 < 1800:
         if proc.poll() is not None:
+            logf.flush()
+            tail = (WORK / "vllm.log").read_text(errors="replace")[-3000:]
+            print(tail, flush=True)
             raise SystemExit(f"vLLM exited with {proc.returncode}; see vllm.log")
         try:
             with urllib.request.urlopen(f"{API}/models", timeout=5) as r:
@@ -139,14 +176,20 @@ class SwegemmaEval:
                            results_dir=results_dir, models_yaml=self.models_yaml, sandbox="subprocess",
                            concurrency=self.concurrency, max_tool_calls=self.mtc,
                            max_time_minutes=self.mtm)
+        # `swegemma eval` through kernels/eval_runner.py: the same CLI, plus the scorer's graph and
+        # embeddings dirs and context caching/compaction, which the bare CLI leaves unset.
+        cmd[:1] = [sys.executable, str(Path(__file__).resolve().parent / "eval_runner.py")]
+        env = dict(os.environ, SWEGEMMA_GRAPH_DIR=str(self.comp / "graphs"),
+                   SWEGEMMA_EMBEDDINGS_DIR=str(self.comp / "embeddings"))
         log("eval:", " ".join(map(str, cmd)))
         t0 = time.time()
         with open(results_dir.parent / "eval.log", "w") as lf:
-            rc = subprocess.run(cmd, stdout=lf, stderr=subprocess.STDOUT).returncode
+            rc = subprocess.run(cmd, stdout=lf, stderr=subprocess.STDOUT, env=env, cwd=str(WORK)).returncode
         wall = time.time() - t0
         self.walls.append({"results": str(results_dir), "n": len(tasks), "wall_s": wall, "rc": rc})
         log(f"eval rc={rc} in {wall / 60:.1f} min for {len(tasks)} tasks")
         if rc != 0:
+            print(Path(results_dir.parent / "eval.log").read_text(errors="replace")[-3000:], flush=True)
             raise SystemExit(f"swegemma eval failed (rc={rc}); see {results_dir.parent / 'eval.log'}")
 
 
@@ -155,7 +198,7 @@ def setup(alias):
     code = find_code_root()
     sys.path.insert(0, str(code))
     comp = find_competition()
-    ensure_swegemma(comp)
+    install_wheelhouse()
     from harness.swegemma import models_yaml
     template = next(iter(sorted(comp.glob("**/models*.yaml"))), None)
     my = WORK / "models.yaml"

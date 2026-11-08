@@ -19,7 +19,7 @@ instruction: |
   Answer in at most 15 lines: the likely fix site first, as path:line and the qualified symbol,
   then the callers and callees that matter, then what you are unsure about.
 tools:
-  - name: get_code_neighbors
-  - name: get_code_subgraph
-  - name: search_similar_code
-  - name: read_file
+  - get_code_neighbors
+  - get_code_subgraph
+  - search_similar_code
+  - read_file
