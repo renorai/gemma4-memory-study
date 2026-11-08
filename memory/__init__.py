@@ -1,7 +1,7 @@
 """Transferable node-anchored experience memory for small coding agents (Kaggle Gemma 4 entry).
 
 This package is the code that ships: runner/build_submission.py copies these files verbatim
-into the submission's `skills/graph_memory/scripts/memory/`. Python >= 3.8, standard library
+into the submission's `skills/graph-memory/scripts/memory/`. Python >= 3.8, standard library
 only, no harness imports, so it runs inside the task sandbox unchanged.
 """
 from .keys import STRONG, WEIGHTS, keys_for, mentioned_symbols

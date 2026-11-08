@@ -15,6 +15,15 @@ Rules checked (each is a sentence of the guide, or our own guard where marked):
 7. Our guard: no unfilled build placeholders (`{{...}}`, `<!-- MEMORY -->`) and no ADK state
    placeholder in a prompt other than {problem_description} and {hints} (an unknown one would
    fail at run time, or silently stay literal).
+8. Skills (first real Kaggle run, 8 Nov: an undeclared skill was never loaded): every
+   skills/<name>/ folder is declared in agent.yaml's top-level `skills:` list, and every entry
+   there is a relative folder inside the submission holding a SKILL.md whose frontmatter
+   `name` equals the folder name (ADK's load_skill_from_dir rejects a mismatch) and is
+   kebab-case (google-adk 2.14 accepts snake_case only behind a feature flag that is off by
+   default: `graph_memory` fails to load).
+9. Inside a skill, only SKILL.md and the scripts/, assets/ and references/ folders: ADK's
+   run_skill_script copies only those three folders next to the script it runs, so any other
+   file would be missing at run time. .py files go in scripts/.
 """
 from __future__ import annotations
 
@@ -34,6 +43,9 @@ _MODEL = re.compile(r"^\s*model:\s*['\"]?([^'\"#\s]+)", re.M)
 _CLASS = re.compile(r"^\s*agent_class:\s*['\"]?([A-Za-z_]+)", re.M)
 _INCLUDE = re.compile(r"!include\s+['\"]?([^'\"\s#]+)")
 _CONFIG_PATH = re.compile(r"^\s*config_path:\s*['\"]?([^'\"\s#]+)", re.M)
+_FRONT_NAME = re.compile(r"\A---\s*\n(?:.*\n)*?name:\s*['\"]?([A-Za-z0-9_-]+)", re.M)
+SKILL_SUBDIRS = {"scripts", "assets", "references"}
+_KEBAB = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*\Z")
 _STATE = re.compile(r"(?<!\{)\{([A-Za-z_][A-Za-z0-9_:.]*)\??\}(?!\})")
 
 
@@ -61,6 +73,60 @@ def _check_ref(root, base, ref, allowed, what, errors):
         errors.append(f"{what} {ref!r}: extension {hit.suffix} not allowed here")
         return None
     return hit
+
+
+def declared_skills(agent_yaml_text):
+    """Entries of the top-level `skills:` list (`- path` or `- key: path`)."""
+    out, inside = [], False
+    for line in agent_yaml_text.splitlines():
+        if re.match(r"^skills:\s*(#.*)?$", line):
+            inside = True
+            continue
+        if inside:
+            if not line.strip() or line.lstrip().startswith("#"):
+                continue
+            if not line[0].isspace():
+                break
+            m = re.match(r"^\s+-\s+(?:\w+:\s*)?['\"]?([^'\"\s#]+)", line)
+            if m:
+                out.append(m.group(1))
+    return out
+
+
+def _check_skills(root, errors):
+    agent = root / "agent.yaml"
+    declared = declared_skills(agent.read_text(encoding="utf-8")) if agent.is_file() else []
+    seen = set()
+    for ref in declared:
+        if ref.startswith(("/", "~")) or ".." in Path(ref).parts:
+            errors.append(f"skills {ref!r}: absolute path or traversal")
+            continue
+        d = root / ref
+        if not d.is_dir() or not _inside(root, d) or d.is_symlink():
+            errors.append(f"skills {ref!r}: not a folder inside the submission")
+            continue
+        seen.add(d.resolve())
+        md = d / "SKILL.md"
+        m = _FRONT_NAME.search(md.read_text(encoding="utf-8")) if md.is_file() else None
+        if m is None:
+            errors.append(f"skills {ref!r}: no SKILL.md with a frontmatter name")
+        elif m.group(1) != d.name:
+            errors.append(f"skills {ref!r}: SKILL.md name {m.group(1)!r} does not match the folder name")
+        elif not _KEBAB.match(m.group(1)) or len(m.group(1)) > 64:
+            errors.append(f"skills {ref!r}: name {m.group(1)!r} is not kebab-case (ADK's default rule)")
+    sk = root / "skills"
+    for d in sorted(sk.iterdir()) if sk.is_dir() else []:
+        if not d.is_dir():
+            continue
+        if d.resolve() not in seen:
+            errors.append(f"skills/{d.name}: not declared under skills: in agent.yaml")
+        for p in sorted(d.rglob("*")):
+            rel = p.relative_to(d)
+            if p.is_file() and rel.as_posix() != "SKILL.md" and rel.parts[0] not in SKILL_SUBDIRS:
+                errors.append(f"skills/{d.name}/{rel.as_posix()}: outside SKILL.md, scripts/, assets/ "
+                              "and references/, so run_skill_script would not see it")
+            elif p.is_file() and p.suffix == ".py" and rel.parts[0] != "scripts":
+                errors.append(f"skills/{d.name}/{rel.as_posix()}: .py belongs in scripts/")
 
 
 def validate(root):
@@ -102,6 +168,7 @@ def validate(root):
                 prompt_files.add(hit)
         for ref in _CONFIG_PATH.findall(text):
             _check_ref(root, p.parent, ref, {".yaml", ".yml"}, "config_path", errors)
+    _check_skills(root, errors)
     if len(models) != 1:
         errors.append(f"exactly one base model is required, found {sorted(models)}")
     elif not models <= MODEL_ALIASES:

@@ -126,22 +126,29 @@ hash).
 
 ```
 submission/                       (template; runner/build_submission.py writes one per arm and fold)
-  agent.yaml                      coder LlmAgent: run/read/write/edit/get_status/submit_patch + explorer AgentTool
+  agent.yaml                      coder LlmAgent: run/read/write/edit/get_status/submit_patch + explorer agent_tool;
+                                  memory arms add `skills: [skills/graph-memory]`
   sub_agents/explorer.yaml        read-only LlmAgent: the 3 graph tools + read_file (skip_summarization)
   prompts/coder.md                {problem_description}, {hints?}; memory section only in memory arms
   eval_config.yaml                100 tool calls, 60 min, 100 turns
-  skills/graph_memory/SKILL.md
-  skills/graph_memory/config.yaml arm + RetrievalConfig, flat key: value
-  skills/graph_memory/lessons.txt JSON lines (.jsonl is not an allowed extension)
-  skills/graph_memory/scripts/recall.py        entry point (stdlib, Python >= 3.8)
-  skills/graph_memory/scripts/memory/*.py      memory/ copied verbatim (tested byte-for-byte)
+  skills/graph-memory/SKILL.md                 name: graph-memory (ADK requires kebab-case by default)
+  skills/graph-memory/assets/config.yaml       arm + RetrievalConfig, flat key: value
+  skills/graph-memory/assets/lessons.txt       JSON lines (.jsonl is not an allowed extension)
+  skills/graph-memory/scripts/recall.py        entry point (stdlib, Python >= 3.8)
+  skills/graph-memory/scripts/memory/*.py      memory/ copied verbatim (tested byte-for-byte)
 ```
 
 **How the agent recalls.**
-1. Its first action is to write the issue to `/tmp/task.md` and run `recall.py --task-file`.
-2. Once the explorer has named the fix site, it runs `recall.py --symbol <fix site>` with up to
+1. Its first action is to save the issue to `/tmp/task.md` with `run_command` (a quoted
+   heredoc; `write_file` cannot leave /workspace, and anything in /workspace lands in the patch).
+2. It runs `recall.py` with ADK's `run_skill_script` (skill `graph-memory`, args
+   `--task-file /tmp/task.md --repo /workspace`). ADK copies only the skill's scripts/, assets/
+   and references/ into a temporary folder and runs the script there, which is why the data sits
+   in assets/ and the repository is passed explicitly. `run_command` with the script's path is
+   the fallback.
+3. Once the explorer has named the fix site, it runs `recall.py --symbol <fix site>` with up to
    two callers.
-3. At most 3 recalls per task.
+4. At most 3 recalls per task. The script writes no file (no bytecode either).
 
 **Inside the script.**
 1. It builds a static index of the repo in the working directory (`memory/pyindex.py`: symbols,
@@ -224,9 +231,14 @@ dataset) and writes three push directories.
 | CLI flags of `swegemma eval` | from the guide | `harness/swegemma.py:eval_command` |
 | results layout (task_results.jsonl, traces/trace_<id>.json, patches/) | from the guide | `harness/swegemma.py` |
 | **VERIFY** field names in tasks.jsonl, task_results.jsonl and ATIF steps | alias lists; fail closed when no outcome field is found | `harness/swegemma.py` |
-| **VERIFY** patch file names in patches/ and the snapshot layout | tries several names | `read_patch`, `snapshot_for` |
-| **VERIFY** ADK YAML syntax for generate_content_config/thinking_config and AgentTool args | ADK Agent Config names | `submission/agent.yaml` (marked VERIFY) |
-| **VERIFY** how a skill script is invoked and where the skill dir sits in the sandbox | the prompt gives a path plus a one-time `find` fallback; the throughput kernel's skill smoke checks it | `runner/prompt_parts/memory.md` |
+| **VERIFY** patch file names in patches/ | tries several names | `read_patch` |
+| Snapshots ship as .tgz archives | first real Kaggle run, 8 Nov; extracted once, .py only, into <tmp>/renor-snapshots | `snapshot_for`, `extract_snapshot`, `tests/test_snapshots.py` |
+| Tool list syntax: names as strings, sub-agents as `agent_tool: {config_path, skip_summarization}` | first real Kaggle run, 8 Nov (operator diff) | `submission/agent.yaml` |
+| **VERIFY** generate_content_config/thinking_config field names | ADK Agent Config names | `submission/agent.yaml` (marked VERIFY) |
+| write_file is confined to /workspace ("path traversal" for /tmp) | first real Kaggle run, 8 Nov | the issue is saved with `run_command`; `fake_harness.Sandbox` enforces the rule |
+| A skill is used only if declared under `skills:` in agent.yaml | first real Kaggle run, 8 Nov (skill smoke failed without it) | `build_submission._declare_skill`, `runner/validate.py` rule 8 |
+| ADK skill loading: SKILL.md name equals the folder and is kebab-case; run_skill_script materializes only scripts/, assets/, references/ in a temp dir and runs there | read in google-adk 2.14.0 (`skills/_utils.py`, `tools/skill_toolset.py`); the built skill loads and runs under it (`tests/test_skill_smoke.py::RealAdk`) | `runner/validate.py` rules 8–9 |
+| **VERIFY** the exact `skills:` entry form adk-submission reads (we write `- skills/graph-memory`), that it exposes `run_skill_script`, and that the script's executor sees /workspace and /tmp | adk-submission is wheelhouse-only, not inspected here; the throughput kernel's skill smoke reports `issue_saved`, `recall_ran`, `recall_via`, `recall_errors` and `pass` | `kernels/throughput/throughput.py` |
 | **VERIFY** models.yaml shape | copies the competition's example if present, else our guess | `harness/swegemma.py:models_yaml` |
 | **VERIFY** vLLM flags for Gemma 4 tool calls and reasoning | `VLLM_EXTRA_ARGS` | `kernels/common.py` |
 
@@ -243,6 +255,19 @@ dataset) and writes three push directories.
     correction.
 - **2026-11-07, from PR #1560's earlier review (carried over).** The sign test runs on per-task
   means, matching the task-clustered bootstrap. The model-author check is exact.
+- **2026-11-08, after the first real Kaggle run, before any arm run.** The throughput kernel's
+  skill smoke failed: `write_file` to /tmp/task.md was rejected as path traversal, the skill was
+  not declared under `skills:`, and recall.py was not reachable from the task's working folder.
+  The memory protocol changed to fit the real harness; no arm had been run and no result seen.
+  - The issue is saved with `run_command` (quoted heredoc) and recall runs through
+    `run_skill_script` with `--repo /workspace`; `run_command` is the fallback.
+  - The skill folder is `skills/graph-memory`, not `skills/graph_memory`: google-adk rejects
+    snake_case skill names unless a feature flag is on.
+  - `config.yaml` and `lessons.txt` moved into the skill's `assets/`, because run_skill_script
+    copies only scripts/, assets/ and references/. PREREG.md's fairness rule is unchanged: all
+    memory arms still differ only in those two files, now at
+    `skills/graph-memory/assets/config.yaml` and `.../assets/lessons.txt`.
+  - Task snapshots ship as .tgz; `snapshot_for` now extracts them (Python sources only).
 - **TODO before the first arm run.** Record the scope that `choose_scope` picks from the
   throughput kernel's numbers: tasks, exploratory arms per model and concurrency.
 

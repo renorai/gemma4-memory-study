@@ -17,7 +17,7 @@ and there are no results.**
 | `DESIGN.md` | The facts from HARNESS_README.md, the reasons for transferable keys, the arms, the architecture, compute, threats, the adapter's VERIFY items and the deviations log. |
 | `RELATED.md` | Prior work. Every entry was opened on 7 Nov 2026. |
 | `memory/` | The code that ships, verbatim, inside the skill. Python ≥ 3.8, standard library only. It holds a static repo index (`pyindex.py`), transferable keys (`keys.py`), the lesson schema and store, and the five arms (`retrieval.py`). |
-| `submission/` | The declarative template: `agent.yaml`, `sub_agents/explorer.yaml`, `prompts/coder.md`, `eval_config.yaml` and `skills/graph_memory/` (SKILL.md and `scripts/recall.py`). |
+| `submission/` | The declarative template: `agent.yaml`, `sub_agents/explorer.yaml`, `prompts/coder.md`, `eval_config.yaml` and `skills/graph-memory/` (SKILL.md and `scripts/recall.py`). |
 | `runner/` | `build_submission.py` builds one submission per arm and fold. `validate.py` checks the harness's file rules. `budget.py` holds the cut rule and the stratified subset. `probes.py` holds the key-recurrence probe. |
 | `harness/` | The ADAPTER to `swegemma eval`: the CLI, plus readers for tasks.jsonl, task_results.jsonl, ATIF traces and patches. The readers fail closed. |
 | `pipeline/` | Self-distillation from traces, and the protocol: baseline, distil, headline (LORO), explore. |

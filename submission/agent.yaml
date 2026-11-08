@@ -3,6 +3,7 @@
 # runner/build_submission.py writes the real directory per arm; runner/validate.py checks it.
 # Lines marked VERIFY follow ADK Agent Config field names but were not in the guide excerpt we
 # had; the first 2-task smoke in kernels/throughput.py checks that they compile.
+# Memory arms get a `skills:` list appended by the builder; the no-memory arm has none.
 agent_class: LlmAgent
 name: coder
 model: gemma-4-31b-it-qat-w4a16-ct

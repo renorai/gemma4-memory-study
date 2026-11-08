@@ -5,10 +5,16 @@
 
 What it writes (all allowed by HARNESS_README.md: .yaml/.md/.txt, .py only inside skills/<name>/):
 
-    agent.yaml, sub_agents/explorer.yaml, eval_config.yaml     model set to --model everywhere
+    agent.yaml, sub_agents/explorer.yaml, eval_config.yaml     model set to --model everywhere;
+                                                               memory arms declare the skill
+                                                               under `skills:` in agent.yaml
     prompts/coder.md                                           memory section in or out
-    skills/graph_memory/SKILL.md, config.yaml, lessons.txt     memory arms only
-    skills/graph_memory/scripts/recall.py, scripts/memory/*.py memory arms only; memory/ verbatim
+    skills/graph-memory/SKILL.md                               memory arms only
+    skills/graph-memory/assets/config.yaml, assets/lessons.txt memory arms only
+    skills/graph-memory/scripts/recall.py, scripts/memory/*.py memory arms only; memory/ verbatim
+
+The data sits in assets/ because ADK's run_skill_script copies only a skill's scripts/,
+assets/ and references/ into the folder it runs the script in.
 
 The no-memory arm ships no skill at all. The shuffled arm ships the same lessons with their key
 sets permuted (seed fixed in PREREG.md). Every build is checked by runner/validate.py.
@@ -28,8 +34,16 @@ ROOT = Path(__file__).resolve().parents[1]
 TEMPLATE = ROOT / "submission"
 MEMORY_SECTION = ROOT / "runner" / "prompt_parts" / "memory.md"
 SHUFFLE_SEED = 20261107
-DEFAULT_SKILL_DIR = "skills/graph_memory"
+DEFAULT_SKILL_DIR = "skills/graph-memory"
+SKILL_NAME = "graph-memory"
 MARKER = "<!-- MEMORY -->\n"
+
+
+def _declare_skill(text, skill_dir):
+    """Add a top-level `skills:` list to agent.yaml (VERIFY: the adk-submission key; DESIGN.md 9)."""
+    if any(line.startswith("skills:") for line in text.splitlines()):
+        raise ValueError("template agent.yaml already declares skills")
+    return text.rstrip("\n") + f"\nskills:                             # graph-memory, memory arms only\n  - {skill_dir}\n"
 
 
 def _set_model(text, model):
@@ -54,7 +68,10 @@ def build(arm, lessons, model, out, *, exclude_repos=(), source_model=None,
     (out / "prompts").mkdir(parents=True)
     (out / "sub_agents").mkdir()
     for rel in ("agent.yaml", "sub_agents/explorer.yaml"):
-        (out / rel).write_text(_set_model((TEMPLATE / rel).read_text(encoding="utf-8"), model), encoding="utf-8")
+        text = _set_model((TEMPLATE / rel).read_text(encoding="utf-8"), model)
+        if rel == "agent.yaml" and arm != "none":
+            text = _declare_skill(text, skill_dir)
+        (out / rel).write_text(text, encoding="utf-8")
     shutil.copyfile(TEMPLATE / "eval_config.yaml", out / "eval_config.yaml")
     coder = (TEMPLATE / "prompts" / "coder.md").read_text(encoding="utf-8")
     if MARKER not in coder:
@@ -70,16 +87,17 @@ def build(arm, lessons, model, out, *, exclude_repos=(), source_model=None,
         if arm == "shuffled":
             store = store.shuffled_keys(SHUFFLE_SEED)
         n_lessons = len(store)
-        sk = out / "skills" / "graph_memory"
+        sk = out / "skills" / SKILL_NAME
         (sk / "scripts" / "memory").mkdir(parents=True)
-        shutil.copyfile(TEMPLATE / "skills" / "graph_memory" / "SKILL.md", sk / "SKILL.md")
-        shutil.copyfile(TEMPLATE / "skills" / "graph_memory" / "scripts" / "recall.py", sk / "scripts" / "recall.py")
+        (sk / "assets").mkdir()
+        shutil.copyfile(TEMPLATE / "skills" / "graph-memory" / "SKILL.md", sk / "SKILL.md")
+        shutil.copyfile(TEMPLATE / "skills" / "graph-memory" / "scripts" / "recall.py", sk / "scripts" / "recall.py")
         for f in SHIPPED:
             shutil.copyfile(ROOT / "memory" / f, sk / "scripts" / "memory" / f)
         lines = ["# Written by runner/build_submission.py. Flat key: value only.", f"arm: {arm}"]
         lines += [f"{k}: {v}" for k, v in dataclasses.asdict(cfg).items()]
-        (sk / "config.yaml").write_text("\n".join(lines) + "\n", encoding="utf-8")
-        store.save(sk / "lessons.txt")
+        (sk / "assets" / "config.yaml").write_text("\n".join(lines) + "\n", encoding="utf-8")
+        store.save(sk / "assets" / "lessons.txt")
     report = validate(out)
     if not report["ok"]:
         raise ValueError(f"invalid submission: {report['errors']}")

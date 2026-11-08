@@ -43,7 +43,7 @@ class E2E(unittest.TestCase):
     def test_no_fold_ships_its_own_repo(self):
         for arm in ("node", "text", "node_khop", "shuffled"):
             for repo in fh.REPOS:
-                p = self.d / "out" / M / arm / "run1" / f"fold-{repo}" / "submission" / "skills" / "graph_memory" / "lessons.txt"
+                p = self.d / "out" / M / arm / "run1" / f"fold-{repo}" / "submission" / "skills" / "graph-memory" / "assets" / "lessons.txt"
                 fold = LessonStore.load(p)
                 self.assertGreater(len(fold), 0)
                 self.assertFalse(any(l.repo == repo for l in fold), (arm, repo))
@@ -51,7 +51,7 @@ class E2E(unittest.TestCase):
     def test_none_ships_no_skill(self):
         sub = self.d / "out" / M / "none" / "run1" / "all" / "submission"
         self.assertFalse((sub / "skills").exists())
-        self.assertNotIn("graph_memory", (sub / "prompts" / "coder.md").read_text())
+        self.assertNotIn("graph-memory", (sub / "prompts" / "coder.md").read_text())
 
     def test_mechanics_on_fixture(self):
         none, node, khop = self.by("none"), self.by("node"), self.by("node_khop")

@@ -49,12 +49,20 @@ class BuiltArms(unittest.TestCase):
     def test_only_memory_arms_ship_the_skill_and_folds_exclude_their_repo(self):
         self.assertFalse((self.d / "none" / "skills").exists())
         for arm in ARMS[1:]:
-            sk = self.d / arm / "skills" / "graph_memory"
+            sk = self.d / arm / "skills" / "graph-memory"
             self.assertTrue((sk / "SKILL.md").is_file())
-            lessons = LessonStore.load(sk / "lessons.txt")
+            lessons = LessonStore.load(sk / "assets" / "lessons.txt")
             self.assertEqual(len(lessons), 2)
             self.assertFalse(any(l.repo == "alpha" for l in lessons))
-            self.assertIn(f"arm: {arm}", (sk / "config.yaml").read_text())
+            self.assertIn(f"arm: {arm}", (sk / "assets" / "config.yaml").read_text())
+
+    def test_memory_arms_declare_the_skill_and_none_does_not(self):
+        self.assertEqual(V.declared_skills((self.d / "none" / "agent.yaml").read_text()), [])
+        for arm in ARMS[1:]:
+            self.assertEqual(V.declared_skills((self.d / arm / "agent.yaml").read_text()), ["skills/graph-memory"])
+            # everything outside the skill section of agent.yaml is identical to the no-memory arm
+            text = (self.d / arm / "agent.yaml").read_text()
+            self.assertEqual(text[: text.index("\nskills:")] + "\n", (self.d / "none" / "agent.yaml").read_text())
 
     def test_prompts_differ_only_by_the_memory_section(self):
         none = (self.d / "none" / "prompts" / "coder.md").read_text()
@@ -68,7 +76,7 @@ class BuiltArms(unittest.TestCase):
 
     def test_shipped_code_is_verbatim_and_py38(self):
         for f in SHIPPED:
-            shipped = (self.d / "node" / "skills" / "graph_memory" / "scripts" / "memory" / f).read_bytes()
+            shipped = (self.d / "node" / "skills" / "graph-memory" / "scripts" / "memory" / f).read_bytes()
             self.assertEqual(shipped, (ROOT / "memory" / f).read_bytes(), f)
         for p in (self.d / "node").rglob("*.py"):
             ast.parse(p.read_text(), feature_version=(3, 8))
@@ -80,7 +88,7 @@ class BuiltArms(unittest.TestCase):
         for arm, symbol, expect in (("node", "Session.send", "sender lesson"),
                                     ("node_khop", "add_signature", "signer lesson"),
                                     ("text", None, "signer lesson")):
-            script = self.d / arm / "skills" / "graph_memory" / "scripts" / "recall.py"
+            script = self.d / arm / "skills" / "graph-memory" / "scripts" / "recall.py"
             repo = repos / ("beta" if arm == "node" else "gamma")
             (repo / "task.md").write_text("the signer is wrong")
             cmd = [sys.executable, "-I", str(script), "--task-file", "task.md"] + (["--symbol", symbol] if symbol else [])
@@ -88,7 +96,7 @@ class BuiltArms(unittest.TestCase):
             self.assertEqual(r.returncode, 0, r.stderr)
             self.assertIn(expect, r.stdout, (arm, r.stdout))
             self.assertNotIn("alpha's own", r.stdout)
-        r = subprocess.run([sys.executable, "-I", str(self.d / "node" / "skills" / "graph_memory" / "scripts" / "recall.py"),
+        r = subprocess.run([sys.executable, "-I", str(self.d / "node" / "skills" / "graph-memory" / "scripts" / "recall.py"),
                             "--symbol", "nothing_here"], cwd=repos / "beta", capture_output=True, text=True, env=env)
         self.assertEqual(r.stdout.strip(), "no lessons for this code")
 
@@ -105,7 +113,7 @@ class BuiltArms(unittest.TestCase):
         import zipfile
         with zipfile.ZipFile(r["zip"]) as z:
             self.assertIn("agent.yaml", z.namelist())
-            self.assertIn("skills/graph_memory/scripts/recall.py", z.namelist())
+            self.assertIn("skills/graph-memory/scripts/recall.py", z.namelist())
 
 
 class ValidatorRules(unittest.TestCase):
@@ -139,10 +147,40 @@ class ValidatorRules(unittest.TestCase):
         self.put("main.py")
         self.assertIn("only inside skills", self.errors())
         (self.root / "main.py").unlink()
-        self.put("skills/other/x.py")           # a skill without SKILL.md
+        self.put("skills/other/scripts/x.py")   # a skill without SKILL.md
         self.assertIn("only inside skills", self.errors())
         self.put("skills/other/SKILL.md", "---\nname: other\n---\n")
+        self.assertIn("skills/other: not declared under skills:", self.errors())
+        a = self.root / "agent.yaml"
+        a.write_text(a.read_text() + "  - skills/other\n")
         self.assertEqual(self.errors(), "")
+
+    def test_skills_must_be_declared_and_named_after_their_folder(self):
+        a = self.root / "agent.yaml"
+        base = a.read_text()
+        a.write_text(base[: base.index("\nskills:")] + "\n")     # the first Kaggle smoke's failure
+        self.assertIn("skills/graph-memory: not declared under skills:", self.errors())
+        for bad, msg in (("../x", "traversal"), ("/abs", "traversal"), ("skills/missing", "not a folder")):
+            a.write_text(base.replace("  - skills/graph-memory", f"  - {bad}"))
+            self.assertIn(msg, self.errors(), bad)
+        a.write_text(base)
+        md = self.root / "skills" / "graph-memory" / "SKILL.md"
+        md.write_text(md.read_text().replace("name: graph-memory", "name: graph-memo"))
+        self.assertIn("does not match the folder name", self.errors())
+        # ADK accepts snake_case only behind a feature flag (off by default): kebab-case only
+        (self.root / "skills" / "graph-memory").rename(self.root / "skills" / "graph_memory")
+        a.write_text(base.replace("skills/graph-memory", "skills/graph_memory"))
+        md = self.root / "skills" / "graph_memory" / "SKILL.md"
+        md.write_text(md.read_text().replace("name: graph-memo", "name: graph_memory"))
+        self.assertIn("is not kebab-case", self.errors())
+
+    def test_skill_files_must_be_where_run_skill_script_copies_them(self):
+        # ADK materializes only scripts/, assets/ and references/ next to the script it runs
+        self.put("skills/graph-memory/lessons.txt")
+        self.assertIn("run_skill_script would not see it", self.errors())
+        (self.root / "skills" / "graph-memory" / "lessons.txt").unlink()
+        self.put("skills/graph-memory/assets/helper.py")
+        self.assertIn(".py belongs in scripts/", self.errors())
 
     def test_single_model(self):
         y = self.root / "sub_agents" / "explorer.yaml"
@@ -157,7 +195,7 @@ class ValidatorRules(unittest.TestCase):
         a = self.root / "agent.yaml"
         base = a.read_text()
         for bad, msg in (("../outside.md", "traversal"), ("/etc/passwd", "absolute"),
-                         ("prompts/missing.md", "does not exist"), ("skills/graph_memory/scripts/recall.py", "extension")):
+                         ("prompts/missing.md", "does not exist"), ("skills/graph-memory/scripts/recall.py", "extension")):
             a.write_text(base.replace("!include prompts/coder.md", f"!include {bad}"))
             self.assertIn(msg, self.errors(), bad)
         a.write_text(base)

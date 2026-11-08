@@ -15,10 +15,20 @@ Each repo has two tasks:
                     The scripted agent only looks one hop down, so it fails without help.
 
 `FakeEval` is an Evaluator for pipeline.experiment: it reads the built submission directory,
-and when the memory section is present it runs the SHIPPED skill script
-(skills/graph_memory/scripts/recall.py) as a subprocess inside the fixture repo, exactly as
-the real agent would through run_command. It writes swegemma's layout: task_results.jsonl,
-summary.json, patches/<id>.diff and ATIF traces/trace_<id>.json.
+and when the memory section is present it follows the SHIPPED prompt's memory protocol inside a
+`Sandbox` (below): it saves the issue with the prompt's own run_command heredoc and runs the
+shipped recall.py through an emulation of ADK's run_skill_script. It writes swegemma's layout:
+task_results.jsonl, summary.json, patches/<id>.diff and ATIF traces/trace_<id>.json.
+
+`Sandbox` reproduces the four facts the first real Kaggle run (8 Nov) taught us:
+    - write_file refuses any path outside /workspace ("path traversal");
+    - run_command runs bash with /workspace as its working directory;
+    - run_skill_script finds a skill only if agent.yaml declares it under `skills:`;
+    - run_skill_script copies only the skill's scripts/, assets/ and references/ into a fresh
+      temporary folder and runs the script there, with argv built as ADK builds it.
+/workspace and /tmp are mapped onto two folders of the test, and /submission onto the built
+submission, by rewriting those path prefixes in commands and arguments: the stand-in for the
+container's mounts.
 
 The scripted policy: if a recall printed a lesson mentioning `hmac.new`, it edits the repo
 function that calls hmac.new; else, if the issue says "digest", it edits the named function;
@@ -28,8 +38,10 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 from harness.swegemma import Task
@@ -120,14 +132,6 @@ class FakeEval:
             self._ix[repo] = RepoIndex.build(self.root / repo)
         return self._ix[repo]
 
-    def _recall(self, sub, repo_dir, task_file, symbols):
-        script = sub / "skills" / "graph_memory" / "scripts" / "recall.py"
-        cmd = [sys.executable, "-I", str(script), "--task-file", str(task_file)]
-        for s in symbols:
-            cmd += ["--symbol", s]
-        r = subprocess.run(cmd, cwd=repo_dir, capture_output=True, text=True, timeout=60)
-        return " ".join(cmd[2:]), (r.stdout + r.stderr).strip()
-
     def __call__(self, submission_dir, task_list, results_dir):
         sub, res = Path(submission_dir), Path(results_dir)
         (res / "traces").mkdir(parents=True, exist_ok=True)
@@ -138,20 +142,21 @@ class FakeEval:
             ix, repo_dir = self.index(t.repo), self.root / t.repo
             seed = t.raw["_seed"]
             calls, recalled = [], ""
+            box = None
             if memory_on:
-                tf = res / f"task_{t.task_id}.md"
-                tf.write_text(t.problem)
-                calls.append(("write_file", {"path": "/tmp/task.md"}, "ok"))
-                cmd, out = self._recall(sub, repo_dir, tf, [])
-                calls.append(("run_command", {"command": "python3 " + cmd}, out))
-                recalled += out
+                box = Sandbox(sub, repo_dir, res / "sandbox" / t.task_id)
+                for call in follow_memory_protocol(box, t.problem):
+                    calls.append(call)
+                    if call[0] == "run_skill_script":
+                        recalled += call[2]
             nbrs = ix.callees(seed)
             calls.append(("get_code_neighbors", {"node": seed, "edge_type": "calls", "max_neighbors": 10},
                           json.dumps(nbrs)))
             if memory_on:
-                cmd, out = self._recall(sub, repo_dir, res / f"task_{t.task_id}.md", [seed])
-                calls.append(("run_command", {"command": "python3 " + cmd}, out))
-                recalled += out
+                call = box.recall_call(t.problem, [seed])
+                calls.append(call)
+                recalled += call[2]
+                box.close()
             if "hmac.new" in recalled:
                 target = next(q for q in sorted(ix.symbols) if "api:hmac.new" in _keys(ix, q))
             elif "digest" in t.problem:
@@ -171,6 +176,96 @@ class FakeEval:
             for r in rows:
                 f.write(json.dumps(r) + "\n")
         (res / "summary.json").write_text(json.dumps({"n": len(rows), "resolved": sum(r["resolved"] for r in rows)}))
+
+
+class Sandbox:
+    """One task's tool surface, as far as the memory protocol touches it (see the module doc)."""
+
+    def __init__(self, submission_dir, repo_dir, root):
+        self.sub = Path(submission_dir)
+        self.root = Path(root)
+        if self.root.exists():
+            shutil.rmtree(self.root)
+        self.workspace = self.root / "workspace"
+        self.tmp = self.root / "tmp"
+        shutil.copytree(repo_dir, self.workspace)
+        self.tmp.mkdir()
+        self.prompt = (self.sub / "prompts" / "coder.md").read_text(encoding="utf-8")
+
+    def close(self):
+        pass
+
+    def _map(self, text):
+        """One pass, so a mapped path is never rewritten again (the test folders sit in /tmp)."""
+        dirs = {"/workspace": str(self.workspace), "/tmp": str(self.tmp), "/submission": str(self.sub)}
+        return re.sub(r"(?<![\w/.])(/workspace|/tmp|/submission)(?=/|\b)", lambda m: dirs[m.group(1)], str(text))
+
+    def write_file(self, path, content):
+        real = Path(self._map(path)) if str(path).startswith("/") else self.workspace / path
+        try:
+            real.resolve().relative_to(self.workspace.resolve())
+        except ValueError:
+            return f"Error: path traversal: {path} is outside /workspace"
+        real.parent.mkdir(parents=True, exist_ok=True)
+        real.write_text(content)
+        return "ok"
+
+    def run_command(self, command):
+        r = subprocess.run(["bash", "-c", self._map(command)], cwd=self.workspace, capture_output=True,
+                           text=True, timeout=60)
+        return (r.stdout + r.stderr).strip() or f"(exit {r.returncode})"
+
+    def declared_skills(self):
+        from runner.validate import declared_skills
+        return declared_skills((self.sub / "agent.yaml").read_text(encoding="utf-8"))
+
+    def run_skill_script(self, skill_name, file_path, args=None):
+        skill = next((self.sub / d for d in self.declared_skills() if Path(d).name == skill_name), None)
+        if skill is None or not (skill / "SKILL.md").is_file():
+            return f"Error: skill '{skill_name}' not found"
+        if not file_path.startswith("scripts/") or ".." in Path(file_path).parts:
+            return f"Error: invalid script path {file_path!r}"
+        if isinstance(args, list):
+            argv = [str(a) for a in args]
+        else:
+            argv = [x for k, v in (args or {}).items() for x in (f"--{k}", str(v))]
+        argv = [self._map(a) for a in argv]
+        with tempfile.TemporaryDirectory() as td:
+            for sub_dir in ("references", "assets", "scripts"):
+                if (skill / sub_dir).is_dir():
+                    shutil.copytree(skill / sub_dir, Path(td) / sub_dir,
+                                    ignore=shutil.ignore_patterns("__pycache__"))
+            if not (Path(td) / file_path).is_file():
+                return f"Error: script {file_path!r} not found in skill '{skill_name}'"
+            r = subprocess.run([sys.executable, "-I", file_path, *argv], cwd=td, capture_output=True,
+                               text=True, timeout=60, env={"PATH": "/usr/bin:/bin"})
+        return (r.stdout + r.stderr).strip()
+
+    def recall_call(self, problem, symbols=()):
+        args = list(memory_protocol(self.prompt)["args"])
+        for s in symbols:
+            args += ["--symbol", s]
+        return ("run_skill_script", {"skill_name": "graph-memory", "file_path": "scripts/recall.py",
+                                     "args": args}, self.run_skill_script("graph-memory", "scripts/recall.py", args))
+
+
+def memory_protocol(prompt):
+    """The save command and the recall arguments, read from the shipped prompt itself, so the
+    tests exercise the instructions the model is given, not a copy of them."""
+    sec = prompt[prompt.index("## Memory from earlier runs"):]
+    save = re.search(r"```\n(cat > /tmp/task\.md <<'(\w+)'\n)<the Issue text>\n(\2)\n```", sec)
+    args = re.search(r"`args` (\[[^\]]*\])", sec)
+    if not save or not args:
+        raise AssertionError("memory section lost its save command or its recall arguments")
+    return {"save_head": save.group(1), "save_tail": save.group(3), "args": json.loads(args.group(1))}
+
+
+def follow_memory_protocol(box, problem):
+    """The scripted agent's first memory steps: save the issue, then recall without symbols."""
+    proto = memory_protocol(box.prompt)
+    cmd = proto["save_head"] + problem + "\n" + proto["save_tail"]
+    yield ("run_command", {"command": cmd}, box.run_command(cmd))
+    yield box.recall_call(problem)
 
 
 def _keys(ix, q):

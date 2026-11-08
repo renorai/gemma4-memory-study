@@ -66,11 +66,17 @@ def main():
         res = WORK / "smoke" / "results"
         SwegemmaEval(comp, my, concurrency=2)(WORK / "sub-smoke", tasks[:2], res)
         att = read_run(res, tasks[:2], model=ALIAS, arm="node", run=1)
-        ran = [any(s["tool"] == "run_command" and "recall.py" in json.dumps(s["args"]) for s in a["steps"])
-               for a in att]
-        outs = [s.get("output", "")[:200] for a in att for s in a["steps"]
-                if s["tool"] == "run_command" and "recall.py" in json.dumps(s["args"])]
-        out["skill_smoke"] = {"tasks": len(att), "recall_ran": ran, "recall_outputs": outs[:4]}
+        from harness.swegemma import is_recall
+        ran = [any(is_recall(s) for s in a["steps"]) for a in att]
+        outs = [s.get("output", "")[:200] for a in att for s in a["steps"] if is_recall(s)]
+        saved = [any(s["tool"] == "run_command" and "/tmp/task.md" in json.dumps(s["args"]) for s in a["steps"])
+                 for a in att]
+        via = sorted({s["tool"] for a in att for s in a["steps"] if is_recall(s)})
+        # pass = every task saved its issue and recalled, and no recall failed to load the skill
+        bad = [o for o in outs if o.startswith(("Error", "memory unavailable")) or "Traceback" in o]
+        out["skill_smoke"] = {"tasks": len(att), "issue_saved": saved, "recall_ran": ran, "recall_via": via,
+                              "recall_outputs": outs[:4], "recall_errors": bad[:4],
+                              "pass": bool(att) and all(saved) and all(ran) and not bad}
         json.dump(out, open(WORK / "throughput.json", "w"), indent=2)
         log("skill smoke:", out["skill_smoke"])
     proc.terminate()

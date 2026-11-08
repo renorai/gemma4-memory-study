@@ -216,17 +216,75 @@ def eval_command(*, tasks, snapshots_dir, submission_dir, results_dir, models_ya
     return cmd
 
 
-def snapshot_for(snapshots_dir, task):
-    """The repository checkout of a task, for offline key derivation. VERIFY the layout: tries
-    <dir>/<task_id>, <dir>/<repo>, then any child whose name starts with the repo."""
+SNAPSHOT_ARCHIVES = (".tgz", ".tar.gz", ".tar")
+
+
+def snapshot_for(snapshots_dir, task, extract_to=None):
+    """The repository checkout of a task, for offline key derivation.
+
+    The competition ships each snapshot as a .tgz archive (first real Kaggle run, 8 Nov), so a
+    folder is used when one exists and an archive is otherwise extracted once, Python sources
+    only, into `extract_to` (default <tmp>/renor-snapshots; /kaggle/input is read-only). Tries
+    <dir>/<task_id>, <dir>/<repo>, <dir>/<task_id>/repo, then any child whose name starts with
+    the repo, each as a folder or as <name>.tgz/.tar.gz/.tar. When the archive holds one
+    top-level folder that is not itself a package, that folder is the checkout, so patch paths
+    line up with the index."""
     d = Path(snapshots_dir)
-    for c in (d / task.task_id, d / task.repo, d / task.task_id / "repo"):
-        if c.is_dir():
-            return c
+    names = (task.task_id, task.repo, f"{task.task_id}/repo")
+    for n in names:
+        if (d / n).is_dir():
+            return d / n
+    for n in names:
+        for ext in SNAPSHOT_ARCHIVES:
+            if (d / (n + ext)).is_file():
+                return extract_snapshot(d / (n + ext), extract_to)
     for c in sorted(d.glob(f"{task.repo}*")):
         if c.is_dir():
             return c
+    for c in sorted(d.glob(f"{task.repo}*")):
+        if c.is_file() and c.name.endswith(SNAPSHOT_ARCHIVES):
+            return extract_snapshot(c, extract_to)
     return None
+
+
+def _archive_stem(path):
+    name = Path(path).name
+    for ext in SNAPSHOT_ARCHIVES:
+        if name.endswith(ext):
+            return name[: -len(ext)]
+    return name
+
+
+def extract_snapshot(archive, extract_to=None):
+    """Extract the .py files of one snapshot archive, once, and return the checkout root.
+
+    Only regular files ending in .py are written (the static index reads nothing else); links,
+    devices, absolute names and `..` members are skipped, so a hostile archive cannot write
+    outside the target. A finished extraction is marked with a stamp file and reused."""
+    import tarfile
+    import tempfile
+    archive = Path(archive)
+    root = Path(extract_to) if extract_to else Path(tempfile.gettempdir()) / "renor-snapshots"
+    dest = root / _archive_stem(archive)
+    stamp = dest / ".renor-extracted"
+    if not stamp.is_file():
+        dest.mkdir(parents=True, exist_ok=True)
+        with tarfile.open(archive) as tf:
+            for m in tf:
+                name = m.name.replace("\\", "/")
+                parts = Path(name).parts
+                if not m.isfile() or not name.endswith(".py") or name.startswith("/") or ".." in parts:
+                    continue
+                out = dest.joinpath(*parts)
+                out.parent.mkdir(parents=True, exist_ok=True)
+                src = tf.extractfile(m)
+                if src is not None:
+                    out.write_bytes(src.read())
+        stamp.write_text(str(archive))
+    tops = [c for c in dest.iterdir() if c.name != stamp.name]
+    if len(tops) == 1 and tops[0].is_dir() and not (tops[0] / "__init__.py").is_file():
+        return tops[0]   # e.g. httpx-<sha>/; a lone package folder is not a checkout root
+    return dest
 
 
 _DIFF_FILE = re.compile(r"^\+\+\+ b/(\S+)", re.M)
@@ -266,6 +324,32 @@ def files_opened(steps):
     return seen
 
 
+RECALL_TOOLS = ("run_skill_script", "run_command")
+
+
+def is_recall(step):
+    """A call of the graph-memory recall script: through ADK's run_skill_script (the protocol the
+    prompt gives), or through run_command (its fallback)."""
+    if step.get("tool") not in RECALL_TOOLS:
+        return False
+    a = step.get("args") or {}
+    if step["tool"] == "run_skill_script":
+        return "recall.py" in str(a.get("file_path", ""))
+    return "recall.py" in str(a.get("command", a.get("_", "")))
+
+
+def _recall_argv(args):
+    """The recall script's argument string, from either tool's arguments."""
+    if "command" in args or "_" in args:
+        return str(args.get("command", args.get("_", "")))
+    a = args.get("args")
+    if isinstance(a, list):
+        return " ".join(map(str, a))
+    if isinstance(a, dict):
+        return " ".join(f"--{k} {v}" for k, v in a.items())
+    return str(a or "")
+
+
 def symbols_touched(steps):
     """Symbol names the agent passed to the graph tools or to the recall script, in order."""
     out = []
@@ -278,8 +362,8 @@ def symbols_touched(steps):
             names = n if isinstance(n, list) else re.split(r"[,\s]+", str(n or ""))
         elif s["tool"] == "search_similar_code":
             names = [a.get("query")]
-        elif s["tool"] == "run_command" and "recall.py" in str(a.get("command", a.get("_", ""))):
-            names = re.findall(r"--symbol[ =]['\"]?([\w.:]+)", str(a.get("command", a.get("_", ""))))
+        elif is_recall(s):
+            names = re.findall(r"--symbol[ =]['\"]?([\w.:]+)", _recall_argv(a))
         for n in names:
             if isinstance(n, str) and n.strip() and n.strip() not in out:
                 out.append(n.strip())
@@ -289,7 +373,7 @@ def symbols_touched(steps):
 def lesson_ids_shown(steps):
     ids = []
     for s in steps:
-        if s["tool"] == "run_command":
+        if is_recall(s):
             for i in re.findall(r"\[L:([0-9a-f]{12})\]", s.get("output") or ""):
                 if i not in ids:
                     ids.append(i)

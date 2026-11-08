@@ -1,6 +1,6 @@
 """Lesson store with an inverted index from anchor key to lessons. JSON lines on disk.
 
-In the submission the file is `skills/graph_memory/lessons.txt`: the harness allows .txt but not
+In the submission the file is `skills/graph-memory/assets/lessons.txt`: the harness allows .txt but not
 .jsonl, so the content is JSON lines under a .txt name.
 
 Python >= 3.8, standard library only: this file ships inside the submission's skill.

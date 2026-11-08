@@ -16,7 +16,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from harness.swegemma import files_opened, lesson_ids_shown, patch_files, read_run
+from harness.swegemma import files_opened, is_recall, lesson_ids_shown, patch_files, read_run
 from memory import LessonStore, RepoIndex, RetrievalConfig
 from pipeline.distill import DistillStats, distill_attempt
 from runner.build_submission import build
@@ -82,8 +82,7 @@ def to_row(a, gold_files=()):
     row = {k: a[k] for k in ("model", "arm", "run", "task_id", "repo", "fold", "success",
                              "model_calls", "tokens_in", "tokens_out", "wall_s")}
     row["tool_calls"] = len(a["steps"])
-    row["recalls"] = sum(1 for s in a["steps"] if s["tool"] == "run_command"
-                         and "recall.py" in json.dumps(s["args"]))
+    row["recalls"] = sum(1 for s in a["steps"] if is_recall(s))
     row["lessons_shown"] = len(lesson_ids_shown(a["steps"]))
     gold = set(gold_files)
     for k in HIT_KS:
