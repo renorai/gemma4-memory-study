@@ -493,6 +493,29 @@ dataset) and writes three push directories.
   built it. In any later session every task would have failed with "No such file". `load_env`
   now resolves the real interpreter directory, and `build_env` records it. The frozen-shared
   baseline moves to the fix, 1914676.
+- **2026-11-08T23:44Z, the recap plumbing has no side effect on the no-memory arm (replay check, CPU only).**
+  `kernels/replaycheck` (Kaggle `patrickpassos/renor-gemma4-replaycheck` v3) replayed the
+  recorded `httpx_3672` throughput trace (31B, arm `none`) through the harness twice, each time
+  against a mock model server that returns the trace's 29 recorded agent steps in order:
+  - once at 7e75bf0e, the commit before the plumbing (code hash dc480958...);
+  - once at the final pin ff9bf75d (code hash dee8321a...).
+
+  Results:
+  - The `none` submissions are byte-identical.
+  - Each tree sent 33 model requests. The prompts, the 7 tool schemas and the generation
+    parameters (max_completion_tokens 16384, thinking_token_budget, chat_template_kwargs) are
+    identical.
+  - 16 of 33 requests are byte-identical. The other 17 differ in only two ways, and both are
+    nondeterminism inside the harness, present in any two runs:
+    - the random 12-hex sandbox id in tool error messages;
+    - the order of the node list that `get_code_subgraph` returns (a set; string hash
+      randomization).
+
+    With the ids masked and those node lists sorted, 33 of 33 requests are identical.
+  - The compaction and caching config (`kernels/eval_runner.py`) is byte-identical between the
+    two trees. This short replay did not reach the compaction threshold, so no compaction event
+    was compared.
+  - Both replays resolved the task, because they replayed the recorded edits.
 
 ## 11. Stretch: rejection-sampling LoRA (exploratory, after the headline runs)
 
