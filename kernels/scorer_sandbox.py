@@ -332,7 +332,9 @@ def build_env(dest, comp):
     subprocess.run([sys.executable, "-m", "pip", "install", "-q", "uv"], check=True)
     env = dict(os.environ, UV_PYTHON_INSTALL_DIR=str(work / "py"))
     subprocess.run([sys.executable, "-m", "uv", "python", "install", "3.13"], check=True, env=env)
-    py = sorted(glob.glob(str(work / "py" / "cpython-3.13*" / "bin" / "python3.13")))[0]
+    # the real install dir, not uv's "cpython-3.13-..." symlink (its absolute target dangles elsewhere)
+    py = sorted(p for p in glob.glob(str(work / "py" / "cpython-3.13*" / "bin" / "python3.13"))
+                if not Path(p).parents[1].is_symlink())[0]
     sp = work / "image_sp"
     subprocess.run([sys.executable, "-m", "uv", "pip", "install", "--python", py, "--target", str(sp),
                     "--exclude-newer", IMAGE_DATE, *IMAGE_PKGS], check=True, env=env)
@@ -452,7 +454,14 @@ def load_env(src=None, root=ENV_ROOT, comp=None):
             with tarfile.open(src / name) as t:
                 t.extractall(root, filter="tar")
         (root / ".ok").write_text("ok\n")
-    os.environ["SWEGEMMA_PY313"] = str(root / manifest["python_rel"])
+    py = root / manifest["python_rel"]
+    if not py.exists():                        # a manifest that names uv's symlinked dir: use the real one
+        real = [p for p in sorted(root.glob("py/cpython-3.13*/bin/python3.13"))
+                if not p.parents[1].is_symlink() and p.exists()]
+        if not real:
+            raise SystemExit(f"scorer env: no python3.13 under {root / 'py'}")
+        py = real[0]
+    os.environ["SWEGEMMA_PY313"] = str(py)
     os.environ["SWEGEMMA_IMAGE_SP"] = str(root / "image_sp")
     os.environ["SWEGEMMA_OVERLAY_DIR"] = str(root / "overlays")
     if comp is not None:                       # per-snapshot version selection (post_setup step 3)

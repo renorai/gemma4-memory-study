@@ -488,6 +488,11 @@ dataset) and writes three push directories.
   runner and the other 32 on Kaggle (`arm_run` `CONFIG["part"]`). Both use the same code commit,
   code hash, environment manifest and arm settings. Every row records `code_sha256` and
   `env_sha256`, so the two parts can be checked against each other.
+- **2026-11-08T23:34Z, bug found by the replay check, fixed before any arm run.** The environment manifest
+  named uv's `cpython-3.13-...` symlink, whose absolute target exists only in the session that
+  built it. In any later session every task would have failed with "No such file". `load_env`
+  now resolves the real interpreter directory, and `build_env` records it. The frozen-shared
+  baseline moves to the fix.
 
 ## 11. Stretch: rejection-sampling LoRA (exploratory, after the headline runs)
 
