@@ -143,6 +143,9 @@ def make_note(seq, kind, text, about=(), files=()):
 
 def safe_dir(path):
     """The notes folder, which must be inside a temporary-files folder (/tmp, or the system's)."""
+    if not os.path.isabs(str(path)):
+        # A relative path resolves against the current folder, which may itself be under /tmp.
+        raise ValueError(f"notes folder must be an absolute path under /tmp, got {path}")
     real = os.path.realpath(path)
     roots = {os.path.realpath("/tmp"), os.path.realpath(tempfile.gettempdir())}
     if not any(real == r or real.startswith(r + os.sep) for r in roots) or real in roots:
