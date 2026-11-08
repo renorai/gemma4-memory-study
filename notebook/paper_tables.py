@@ -5,8 +5,8 @@ notebook, so the notebook and `python notebook/paper_tables.py` run the same cod
 
 One row is one episode: {model, arm, run, task_id, repo, success, ...}. Arms use the code's names
 (none, node, shuffled, recap); the paper calls `node` "memory". Optional fields, reported as n/a
-when absent: context_overflow, compactions, post_compaction_calls, post_compaction_repeats,
-tool_calls, model_calls, tokens_in, tokens_out, wall_s, recalls, lessons_shown, finished_at.
+when absent: context_overflow, compactions, repeats_after_compaction, repeat_rate (all three from
+stats/repeats.py, the single definition of the repeated-action measure), tool_calls, model_calls, tokens_in, tokens_out, wall_s, recalls, lessons_shown, finished_at.
 
 The rules applied here are DESIGN-CHANGELOG-addendum.md's, written before any memory-arm result:
   - the 48-task floor set always runs; 129 tasks x 2 arms x 3 runs is the headline only if it is
@@ -29,6 +29,7 @@ from pathlib import Path
 if __name__ == "__main__" and "__file__" in globals():   # CLI: make the package root importable
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from stats import flip_rates, mcnemar_exact, paired_bootstrap_ci, run_matrix
+from stats.repeats import per_task_rates
 
 SEED = 20261107
 N_BOOT = 10_000
@@ -43,7 +44,7 @@ ARMS = (("none", "no memory"), ("node", "memory"), ("shuffled", "shuffled memory
 LABEL = dict(ARMS)
 # Recap headline switch (DESIGN-CHANGELOG-addendum.md rule 3): no-memory rows only.
 RECAP_MIN_COMPACTED = 0.30      # share of no-memory episodes compacted at least once
-RECAP_MIN_REPEAT = 0.10         # pooled share of post-compaction tool calls that repeat an earlier call
+RECAP_MIN_REPEAT = 0.10         # mean per-task repeated actions per compaction (stats/repeats.py)
 
 
 # ---------------------------------------------------------------- rows
@@ -77,12 +78,12 @@ def fake_rows(seed=SEED, n_tasks=FULL_N, runs=FULL_RUNS):
             n_runs = runs if arm in ("none", "node") else 1
             for run in range(1, n_runs + 1):
                 compactions = rng.choice((0, 0, 1, 1, 2, 3))
-                post = rng.randint(5, 40) if compactions else 0
+                reps = rng.randint(0, 3 * compactions)
                 rows.append({
                     "model": FAKE_MODEL, "arm": arm, "run": run, "task_id": tid, "repo": repo,
                     "success": int(rng.random() < min(1.0, p + lift[arm])),
                     "context_overflow": rng.random() < 0.19, "compactions": compactions,
-                    "post_compaction_calls": post, "post_compaction_repeats": rng.randint(0, post // 4) if post else 0,
+                    "repeats_after_compaction": reps, "repeat_rate": reps / compactions if compactions else None,
                     "tool_calls": rng.randint(15, 100), "model_calls": rng.randint(20, 90),
                     "tokens_in": rng.randint(150_000, 900_000), "tokens_out": rng.randint(5_000, 40_000),
                     "wall_s": rng.uniform(300, 3600),
@@ -184,13 +185,12 @@ def context_stats(rows, model, arm, tasks=None):
     def share(key, pred):
         v = [pred(r[key]) for r in rs if r.get(key) is not None]
         return sum(v) / len(v) if v else None
-    calls = sum(r.get("post_compaction_calls") or 0 for r in rs)
-    reps = sum(r.get("post_compaction_repeats") or 0 for r in rs)
-    have_rep = any(r.get("post_compaction_calls") is not None for r in rs)
     comp = [r["compactions"] for r in rs if r.get("compactions") is not None]
+    rates, _no_compaction = per_task_rates(rs, model, arm)      # single definition: stats/repeats.py
     return {"episodes": len(rs), "compacted": share("compactions", lambda c: c >= 1),
             "compactions_mean": sum(comp) / len(comp) if comp else None,
-            "repeat_share": (reps / calls if calls else 0.0) if have_rep else None,
+            "repeat_share": (sum(rates.values()) / len(rates)) if rates else None,
+            "repeat_tasks": len(rates),
             "overflow": share("context_overflow", bool),
             "overflow_n": sum(1 for r in rs if r.get("context_overflow"))}
 
@@ -200,7 +200,7 @@ def recap_decision(rows, model, tasks):
     base = [r for r in rows if r["arm"] == "none"]
     s = context_stats(base, model, "none", tasks)
     if not s or s["compacted"] is None or s["repeat_share"] is None:
-        return {"decision": "TBD: no-memory rows lack compactions / post_compaction_* fields", **(s or {})}
+        return {"decision": "TBD: no-memory rows lack compactions / repeat_rate fields", **(s or {})}
     promote = s["compacted"] >= RECAP_MIN_COMPACTED and s["repeat_share"] >= RECAP_MIN_REPEAT
     return {"decision": "recap promoted to headline" if promote else "recap stays exploratory",
             "thresholds": {"compacted": RECAP_MIN_COMPACTED, "repeat_share": RECAP_MIN_REPEAT}, **s}
@@ -273,10 +273,11 @@ def build(rows, model, floor_ids, all_tasks):
     for arm, label in ARMS:
         s = context_stats(rows, model, arm, floor)
         t3.append([label] + (["n/a"] * 4 if s is None else
-                             [_f(s["compacted"], True), _f(s["compactions_mean"]), _f(s["repeat_share"], True),
+                             [_f(s["compacted"], True), _f(s["compactions_mean"]), _f(s["repeat_share"]),
                               f"{s['overflow_n']}/{s['episodes']} ({_f(s['overflow'], True)})"]))
     out.append("Table 3: context measures per arm, 48-task floor set, all runs\n\n" + _table(
-        ["Arm", "episodes compacted ≥1×", "compactions per episode", "repeated actions after compaction",
+        ["Arm", "episodes compacted ≥1×", "compactions per episode",
+         "repeated actions per compaction (mean of per-task rates)",
          "context overflows"], t3))
 
     t4 = []

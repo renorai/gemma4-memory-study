@@ -70,10 +70,29 @@ class RepeatsTest(unittest.TestCase):
                 rows.append({"model": M, "arm": "recap", "task_id": t, "run": run, "repeat_rate": x})
                 rows.append({"model": M, "arm": "none", "task_id": t, "run": run, "repeat_rate": y})
         r = repeat_rate_secondary(rows, "recap", "none", M)
-        self.assertEqual(r["n_tasks_recap"], 2)
-        self.assertEqual(r["n_tasks_none"], 3)
+        self.assertEqual(r["n_tasks_paired"], 2)
+        self.assertEqual(r["excluded_no_compaction"], {"recap": 1, "none": 0, "either_arm": 1})
         self.assertAlmostEqual(r["mean"], -1.0)                 # paired over t1 and t2 only
         self.assertLessEqual(r["lo"], r["hi"])
+        self.assertAlmostEqual(r["trimmed_mean_10"], -1.0)
+        self.assertEqual(r["wilcoxon"]["n"], 2)
+
+    def test_trimmed_mean(self):
+        from stats.repeats import trimmed_mean
+        self.assertAlmostEqual(trimmed_mean(list(range(10)) + [1000]), 5.0)   # 1 value cut each end
+        self.assertAlmostEqual(trimmed_mean([1, 2, 3]), 2.0)
+
+    def test_wilcoxon_exact(self):
+        from stats.repeats import wilcoxon_signed_rank
+        r = wilcoxon_signed_rank([1, 2, 3, 4, 5, 6])               # all positive: p = 2 / 2**6
+        self.assertAlmostEqual(r["p"], 2 / 64)
+        self.assertEqual((r["w_plus"], r["w_minus"]), (21.0, 0.0))
+        r = wilcoxon_signed_rank([1, -1, 2, -2, 0])                 # symmetric, zero dropped, ties
+        self.assertEqual(r["n"], 4)
+        self.assertAlmostEqual(r["p"], 1.0)
+        r = wilcoxon_signed_rank([-1.5, 2, 3.25, 4, 5, 6, 7, 8])
+        self.assertAlmostEqual(r["w_minus"], 1.0)
+        self.assertAlmostEqual(r["p"], 4 / 256)                     # W- <= 1: {}, {1}; doubled for two sides
 
 
 if __name__ == "__main__":

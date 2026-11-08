@@ -14,6 +14,7 @@ fake_harness runs a scripted policy. Everything else is shared.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 from harness.swegemma import files_opened, is_recall, lesson_ids_shown, patch_files, read_run
@@ -86,6 +87,9 @@ def to_row(a, gold_files=()):
     row["tool_calls"] = len(a["steps"])
     row["context_overflow"] = int(bool(a.get("context_overflow")))   # its own outcome, not a plain failure
     row.update(repeat_metrics(a))        # key secondary outcome (stats/repeats.py)
+    # the code and environment every row ran on (set by kernels/common.setup; None elsewhere)
+    row["code_sha256"] = os.environ.get("RENOR_CODE_SHA256")
+    row["env_sha256"] = os.environ.get("RENOR_ENV_SHA256")
     row["recalls"] = sum(1 for s in a["steps"] if is_recall(s))
     row["lessons_shown"] = len(lesson_ids_shown(a["steps"]))
     gold = set(gold_files)

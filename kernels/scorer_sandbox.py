@@ -460,6 +460,12 @@ def load_env(src=None, root=ENV_ROOT, comp=None):
     return manifest
 
 
+def manifest_sha256(manifest):
+    """sha256 of the environment manifest (canonical JSON): recorded next to the code hash."""
+    import hashlib
+    return hashlib.sha256(json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
 def patch_harness():
     """Make swegemma's Evaluator build a DockerSandbox for --sandbox subprocess, and run
     DockerSandbox.post_setup after every install_test_dependencies the harness makes."""

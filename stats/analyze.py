@@ -61,21 +61,9 @@ def moderators(rows, model):
 
 
 def repeat_rate_secondary(rows, x, y, model):
-    """Key secondary outcome (stats/repeats.py): per arm, the mean over tasks of the per-task mean
-    repeat_rate (runs with no compaction have none), and the paired bootstrap 95% CI of x - y over
-    the tasks that have a rate in both arms."""
-    m = mean_over_runs([r for r in rows if r["model"] == model], "repeat_rate")
-    by = {(r["arm"], r["task_id"]): r["repeat_rate"] for r in m}
-    out = {"model": model, "x": x, "y": y, "label": "key secondary, repeated actions per compaction"}
-    for arm in (x, y):
-        v = [val for (a, _t), val in by.items() if a == arm]
-        out[f"mean_{arm}"] = sum(v) / len(v) if v else None
-        out[f"n_tasks_{arm}"] = len(v)
-    tasks = sorted(t for (a, t) in by if a == x and (y, t) in by)
-    if tasks:
-        out.update(paired_bootstrap_ci([by[(x, t)] - by[(y, t)] for t in tasks], n_boot=N_BOOT,
-                                       alpha=ALPHA, seed=SEED))
-    return out
+    """Key secondary outcome; the pre-registered statistics live in stats/repeats.py."""
+    from .repeats import paired_repeat_stats
+    return paired_repeat_stats(rows, x, y, model, n_boot=N_BOOT, seed=SEED)
 
 
 def analyze(rows: Iterable[Mapping], primary_models=PRIMARY_MODELS, headline=HEADLINE) -> dict:

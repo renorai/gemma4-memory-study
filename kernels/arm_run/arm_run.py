@@ -72,6 +72,7 @@ def main():
     (out / alias).mkdir(parents=True, exist_ok=True)
     with open(out / alias / "sessions.jsonl", "a") as f:     # one line per session: code, env, config, tasks
         f.write(json.dumps({"code_sha256": (WORK / "code_sha256.txt").read_text().strip(),
+                            "env_sha256": (WORK / "env_sha256.txt").read_text().strip(),
                             "scorer_env": json.loads((WORK / "scorer_env.json").read_text()),
                             "config": cfg, "excluded": excluded,
                             "task_ids": [t.task_id for t in tasks]}) + "\n")

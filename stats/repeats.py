@@ -86,3 +86,87 @@ def repeat_metrics(attempt):
     rep = repeated_actions(attempt.get("steps") or [], c)
     return {"compactions": len(c), "repeats_after_compaction": rep,
             "repeat_rate": (rep / len(c)) if c else None}
+
+
+# ---------------------------------------------------------------------------------------------
+# Pre-registered statistics for the key secondary outcome (DESIGN.md section 10, 2026-11-09):
+#   unit       the per-task rate: repeats / compactions, averaged over that task's runs that
+#              compacted (a run with 0 compactions has no rate);
+#   exclusion  a task with no rate in either arm is excluded, and the exclusions are counted;
+#   key        the mean of the per-task paired differences (x - y), with a paired bootstrap 95% CI
+#              over tasks (10,000 resamples, seed 20261107);
+#   robust     the exact Wilcoxon signed-rank test on those differences (zeros dropped, mid-ranks
+#              for ties) and the 10% trimmed mean of the differences.
+# ---------------------------------------------------------------------------------------------
+
+def trimmed_mean(values, prop=0.10):
+    v = sorted(float(x) for x in values)
+    if not v:
+        raise ValueError("no values")
+    k = int(prop * len(v))
+    v = v[k:len(v) - k] if len(v) - 2 * k > 0 else v
+    return sum(v) / len(v)
+
+
+def wilcoxon_signed_rank(diffs):
+    """Exact two-sided Wilcoxon signed-rank test. Zeros are dropped; tied |d| get mid-ranks.
+    The exact null distribution is computed on doubled ranks (integers), so ties stay exact."""
+    d = [float(x) for x in diffs if float(x) != 0.0]
+    n = len(d)
+    if n == 0:
+        return {"n": 0, "w_plus": 0.0, "w_minus": 0.0, "p": 1.0}
+    order = sorted(range(n), key=lambda i: abs(d[i]))
+    ranks2 = [0] * n                      # doubled mid-ranks
+    i = 0
+    while i < n:
+        j = i
+        while j + 1 < n and abs(d[order[j + 1]]) == abs(d[order[i]]):
+            j += 1
+        for k in range(i, j + 1):
+            ranks2[order[k]] = (i + 1) + (j + 1)          # 2 x mid-rank
+        i = j + 1
+    w2_plus = sum(r for r, x in zip(ranks2, d) if x > 0)
+    total2 = sum(ranks2)
+    counts = {0: 1}                       # exact distribution of the doubled W+ under H0
+    for r in ranks2:
+        nxt = dict(counts)
+        for s, c in counts.items():
+            nxt[s + r] = nxt.get(s + r, 0) + c
+        counts = nxt
+    allc = 2 ** n
+    lo = min(w2_plus, total2 - w2_plus)
+    p = min(1.0, 2 * sum(c for s, c in counts.items() if s <= lo) / allc)
+    return {"n": n, "w_plus": w2_plus / 2, "w_minus": (total2 - w2_plus) / 2, "p": p}
+
+
+def per_task_rates(rows, model, arm):
+    """{task_id: mean repeat_rate over the runs of (model, arm) that compacted}, and the
+    task ids whose runs all had 0 compactions."""
+    g, seen = {}, set()
+    for r in rows:
+        if r["model"] == model and r["arm"] == arm:
+            seen.add(r["task_id"])
+            if r.get("repeat_rate") is not None:
+                g.setdefault(r["task_id"], []).append(float(r["repeat_rate"]))
+    rates = {t: sum(v) / len(v) for t, v in g.items()}
+    return rates, sorted(seen - set(rates))
+
+
+def paired_repeat_stats(rows, x, y, model, n_boot=10_000, seed=20261107):
+    """The pre-registered report for the repeated-action rate, x against y."""
+    from . import paired_bootstrap_ci
+    rx, zx = per_task_rates(rows, model, x)
+    ry, zy = per_task_rates(rows, model, y)
+    both = sorted(set(rx) & set(ry))
+    out = {"model": model, "x": x, "y": y, "label": "key secondary: repeated actions per compaction",
+           "mean_" + x: (sum(rx.values()) / len(rx)) if rx else None,
+           "mean_" + y: (sum(ry.values()) / len(ry)) if ry else None,
+           "n_tasks_paired": len(both),
+           "excluded_no_compaction": {x: len(zx), y: len(zy),
+                                      "either_arm": len((set(rx) | set(zx) | set(ry) | set(zy)) - set(both))}}
+    if both:
+        diffs = [rx[t] - ry[t] for t in both]
+        out.update(paired_bootstrap_ci(diffs, n_boot=n_boot, alpha=0.05, seed=seed))
+        out["trimmed_mean_10"] = trimmed_mean(diffs, 0.10)
+        out["wilcoxon"] = wilcoxon_signed_rank(diffs)
+    return out

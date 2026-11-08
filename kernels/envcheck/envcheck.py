@@ -110,6 +110,7 @@ def main():
     scorer_sandbox.build_env(WORK / "scorer_env", comp)
     env = scorer_sandbox.load_env(WORK / "scorer_env", comp=comp)
     digest = code_sha256(code)
+    env_digest = scorer_sandbox.manifest_sha256(env)
     log("code sha256:", digest, "| scorer env:", env["python"], env["image_dists"])
 
     from harness.swegemma import read_tasks
@@ -142,7 +143,7 @@ def main():
         if r["task_id"] in first48:
             in48[r["status"]] = in48.get(r["status"], 0) + 1
     summary = {
-        "code_sha256": digest, "scorer_env": env, "seed": SUBSET_SEED, "n_tasks": len(rows),
+        "code_sha256": digest, "env_sha256": env_digest, "scorer_env": env, "seed": SUBSET_SEED, "n_tasks": len(rows),
         "minutes": round((time.time() - t0) / 60, 1), "counts_all": counts, "counts_first48": in48,
         "first48_seeded": first48,
         "first48_failing": {i: excluded[i] for i in first48 if i in excluded},

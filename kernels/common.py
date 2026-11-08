@@ -226,9 +226,12 @@ def setup(alias):
     import scorer_sandbox
     env = scorer_sandbox.load_env(comp=comp)
     digest = code_sha256(code)
+    env_digest = scorer_sandbox.manifest_sha256(env)
+    os.environ["RENOR_CODE_SHA256"], os.environ["RENOR_ENV_SHA256"] = digest, env_digest   # every row
     (WORK / "code_sha256.txt").write_text(digest + "\n")
+    (WORK / "env_sha256.txt").write_text(env_digest + "\n")
     (WORK / "scorer_env.json").write_text(json.dumps(env, indent=2))
-    log("code sha256:", digest, "| scorer env: python", env["python"])
+    log("code sha256:", digest, "| env manifest sha256:", env_digest, "| python", env["python"])
     from harness.swegemma import models_yaml
     template = next(iter(sorted(comp.glob("**/models*.yaml"))), None)
     my = WORK / "models.yaml"

@@ -459,6 +459,27 @@ dataset) and writes three push directories.
   evaluated for Python 3.13. This targets the 44 fastapi gold failures caused by starlette 1.6.0.
   The frozen-shared baseline moves to the commit that adds it, and all 129 tasks are re-validated
   on the CPU kernel.
+- **2026-11-08T23:23Z, time-box for task validity (owner rule).** If fewer than 90 tasks are valid by Mon 9 Nov
+  06:00Z, the arms run on the valid set as of then, re-seeded once (stratified, seed 20261107).
+  The funnel and the repo skew are then reported as a limitation. Once any GPU arm run has
+  started, the subset is never re-seeded.
+- **2026-11-08T23:23Z, repeated-action rate: pre-registered statistics** (`stats/repeats.py:paired_repeat_stats`,
+  tested in `tests/test_repeats.py`), before any memory-arm run:
+  - unit: the per-task rate, repeats / compactions, averaged over that task's runs that compacted;
+  - tasks with 0 compactions (no rate in an arm) are excluded, and their number is reported per
+    arm and overall;
+  - key statistic: the mean of the per-task paired differences (`recap - none`), with a paired
+    bootstrap 95% CI over tasks (10,000 resamples, seed 20261107);
+  - robust checks: the exact Wilcoxon signed-rank test on the same differences (zeros dropped,
+    mid-ranks for ties) and the 10% trimmed mean of the differences.
+
+  Resolved rate stays primary. `notebook/paper_tables.py` now takes the measure from
+  `stats/repeats.py` (one definition). Its Table 3 reports the mean per-task rate, and its recap
+  switch reads the same rate.
+- **2026-11-08T23:23Z, provenance per row.** Every result row (`pipeline/experiment.py:to_row`) records
+  `code_sha256` (the code dataset) and `env_sha256` (sha256 of the scorer-environment manifest,
+  canonical JSON, `kernels/scorer_sandbox.py:manifest_sha256`). Every session line in
+  `out/<model>/sessions.jsonl` records both too.
 
 ## 11. Stretch: rejection-sampling LoRA (exploratory, after the headline runs)
 
