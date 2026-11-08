@@ -35,6 +35,9 @@ TEMPLATE = ROOT / "submission"
 MEMORY_SECTION = ROOT / "runner" / "prompt_parts" / "memory.md"
 SHUFFLE_SEED = 20261107
 DEFAULT_SKILL_DIR = "skills/graph-memory"
+# In-task working-memory arms (DESIGN.md section 10, 2026-11-08): no cross-task lesson pool, so
+# no lesson set is required (an empty pool ships) and no leave-one-repo-out folds are needed.
+LESSONLESS_ARMS = ("recap", "recap_shuffled")
 SKILL_NAME = "graph-memory"
 MARKER = "<!-- MEMORY -->\n"
 
@@ -60,7 +63,7 @@ def build(arm, lessons, model, out, *, exclude_repos=(), source_model=None,
         raise ValueError(f"arm must be one of {ARMS}")
     if model not in MODEL_ALIASES:
         raise ValueError(f"base model must be one of {MODEL_ALIASES}")
-    if arm != "none" and lessons is None:
+    if arm != "none" and lessons is None and arm not in LESSONLESS_ARMS:
         raise ValueError("memory arms need lessons")
     out = Path(out)
     if out.exists():
@@ -80,7 +83,8 @@ def build(arm, lessons, model, out, *, exclude_repos=(), source_model=None,
     (out / "prompts" / "coder.md").write_text(coder.replace(MARKER, section), encoding="utf-8")
     n_lessons = 0
     if arm != "none":
-        store = lessons if isinstance(lessons, LessonStore) else LessonStore.load(lessons)
+        store = (LessonStore() if lessons is None
+                 else lessons if isinstance(lessons, LessonStore) else LessonStore.load(lessons))
         store = store.filtered(exclude_repos=exclude_repos, source_model=source_model)
         if any(l.repo in set(exclude_repos) for l in store):
             raise AssertionError("leakage guard failed")
@@ -88,10 +92,11 @@ def build(arm, lessons, model, out, *, exclude_repos=(), source_model=None,
             store = store.shuffled_keys(SHUFFLE_SEED)
         n_lessons = len(store)
         sk = out / "skills" / SKILL_NAME
-        (sk / "scripts" / "memory").mkdir(parents=True)
-        (sk / "assets").mkdir()
-        shutil.copyfile(TEMPLATE / "skills" / "graph-memory" / "SKILL.md", sk / "SKILL.md")
-        shutil.copyfile(TEMPLATE / "skills" / "graph-memory" / "scripts" / "recall.py", sk / "scripts" / "recall.py")
+        # every file of the skill template (memory-arm files), except the two this build writes
+        shutil.copytree(TEMPLATE / "skills" / SKILL_NAME, sk,
+                        ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "config.yaml", "lessons.txt"))
+        (sk / "scripts" / "memory").mkdir(parents=True, exist_ok=True)
+        (sk / "assets").mkdir(exist_ok=True)
         for f in SHIPPED:
             shutil.copyfile(ROOT / "memory" / f, sk / "scripts" / "memory" / f)
         lines = ["# Written by runner/build_submission.py. Flat key: value only.", f"arm: {arm}"]

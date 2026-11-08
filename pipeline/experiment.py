@@ -19,7 +19,7 @@ from pathlib import Path
 from harness.swegemma import files_opened, is_recall, lesson_ids_shown, patch_files, read_run
 from memory import LessonStore, RepoIndex, RetrievalConfig
 from pipeline.distill import DistillStats, distill_attempt
-from runner.build_submission import build
+from runner.build_submission import LESSONLESS_ARMS, build
 from stats.repeats import repeat_metrics
 
 R_HEADLINE = 2                     # DESIGN.md section 10, 2026-11-08 (PREREG said 3)
@@ -36,12 +36,13 @@ def eval_arm(evaluator, arm, tasks, store, model, run, out_root, cfg=RetrievalCo
     """One run of one arm over `tasks`. Memory arms are evaluated fold by fold (LORO)."""
     out_root = Path(out_root)
     attempts = []
-    folds = [None] if arm == "none" else repos_of(tasks)
+    folds = [None] if arm == "none" or arm in LESSONLESS_ARMS else repos_of(tasks)
     for repo in folds:
         tag = "all" if repo is None else f"fold-{repo}"
         base = out_root / model / arm / f"run{run}" / tag
         fold_tasks = tasks if repo is None else [t for t in tasks if t.repo == repo]
-        report = build(arm, store if arm != "none" else None, model, base / "submission",
+        report = build(arm, store if arm != "none" and arm not in LESSONLESS_ARMS else None, model,
+                       base / "submission",
                        exclude_repos=() if repo is None else (repo,), source_model=model, cfg=cfg)
         (base / "build.json").write_text(json.dumps({k: v for k, v in report.items() if k != "files"},
                                                     indent=2, sort_keys=True))

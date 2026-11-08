@@ -236,5 +236,41 @@ class ValidatorRules(unittest.TestCase):
         self.assertEqual(V.main([str(self.root)]), 1)
 
 
+class LessonlessArms(unittest.TestCase):
+    """recap and recap_shuffled (DESIGN.md section 10): no lesson set required, skill shipped."""
+
+    def test_recap_builds_without_lessons(self):
+        from runner.build_submission import build
+        model = "gemma-4-31b-it-qat-w4a16-ct"
+        with tempfile.TemporaryDirectory() as d:
+            for arm in ("recap", "recap_shuffled"):
+                out = Path(d) / arm
+                r = build(arm, None, model, out)
+                self.assertEqual(r["n_lessons"], 0)
+                sk = out / "skills" / "graph-memory"
+                self.assertIn(f"arm: {arm}", (sk / "assets" / "config.yaml").read_text())
+                self.assertEqual((sk / "assets" / "lessons.txt").read_text().strip(), "")
+                tpl = Path(__file__).resolve().parents[1] / "submission" / "skills" / "graph-memory"
+                for f in tpl.rglob("*"):          # every template file ships, except the two built ones
+                    if f.is_file() and f.name not in ("config.yaml", "lessons.txt") and "__pycache__" not in f.parts:
+                        self.assertTrue((sk / f.relative_to(tpl)).is_file(), f.relative_to(tpl))
+            with self.assertRaises(ValueError):
+                build("node", None, model, Path(d) / "node")
+
+    def test_recap_runs_without_folds(self):
+        from pipeline.experiment import eval_arm
+        from harness.swegemma import Task
+        calls = []
+
+        def ev(sub, tasks, res):
+            calls.append((Path(sub).parent.name, len(tasks)))
+            Path(res).mkdir(parents=True, exist_ok=True)
+            (Path(res) / "task_results.jsonl").write_text("")
+        tasks = [Task(f"{r}_{i}", r, "issue") for r in ("a", "b") for i in range(2)]
+        with tempfile.TemporaryDirectory() as d:
+            eval_arm(ev, "recap", tasks, None, "gemma-4-31b-it-qat-w4a16-ct", 1, d)
+        self.assertEqual(calls, [("all", 4)])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -5,6 +5,7 @@ Edit CONFIG (or set ARM_RUN_CONFIG to a JSON string) before `kaggle kernels push
     model       one of the four aliases (31B first, then 12B)
     phases      any of "baseline", "distill", "headline", "explore", "analyze", in order
     n_tasks     from runner/budget.py:choose_scope on the throughput kernel's numbers
+    headline_arm the arm the "headline" phase runs `runs` times ("recap"; "node" needs "distill" first)
     exploratory arms for the "explore" phase ([] when the scope cut them)
     concurrency from the throughput kernel
     resume_from a /kaggle/input path holding an earlier session's /kaggle/working/out
@@ -30,7 +31,8 @@ CONFIG = {                       # defaults = the scope recorded in DESIGN.md se
     "model": "gemma-4-31b-it-qat-w4a16-ct",
     "phases": ["baseline", "distill", "headline", "explore", "analyze"],
     "n_tasks": 48,
-    "exploratory": [],
+    "headline_arm": "recap",     # DESIGN.md section 10 (2026-11-08): recap vs none; "node" is arm 2
+    "exploratory": [],           # e.g. ["recap_shuffled"] or ["node"], 1 run each, if budget allows
     "concurrency": 8,
     "runs": 2,
     "resume_from": None,
@@ -96,7 +98,7 @@ def main():
     store = LessonStore.load(lessons_path) if lessons_path.exists() else None
     if "headline" in cfg["phases"]:
         for r in range(1, cfg["runs"] + 1):
-            attempts += eval_arm(ev, "node", tasks, store, alias, r, out)
+            attempts += eval_arm(ev, cfg["headline_arm"], tasks, store, alias, r, out)
     if "explore" in cfg["phases"]:
         for arm in cfg["exploratory"]:
             attempts += eval_arm(ev, arm, tasks, store, alias, 1, out)

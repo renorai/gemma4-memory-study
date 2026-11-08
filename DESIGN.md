@@ -436,6 +436,16 @@ dataset) and writes three push directories.
   `tests/test_frozen_shared.py` now pins it and also freezes `kernels/scorer_sandbox.py`,
   `kernels/envcheck`, `kernels/arm_run/arm_run.py` and `stats/`. Memory-arm work may change only
   memory-arm files.
+- **2026-11-08, shared plumbing for the recap arms, before any memory-arm run.** The builder and
+  the arm runner now accept `recap` and `recap_shuffled`
+  (`runner/build_submission.py:LESSONLESS_ARMS`):
+  - no lesson set is required; an empty pool ships;
+  - no leave-one-repo-out folds, since the arms carry no cross-task lessons;
+  - every file of `submission/skills/graph-memory/` is copied, so recap scripts added there need
+    no shared-code change;
+  - the `headline` phase runs `CONFIG["headline_arm"]` (default `recap`).
+
+  The `none` arm's build is unchanged.
 
 ## 11. Stretch: rejection-sampling LoRA (exploratory, after the headline runs)
 
