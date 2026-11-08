@@ -74,11 +74,13 @@ print(TABLES)"""),
     (CODE, """# The frozen preregistered analysis (PREREG.md section 5) on the headline set, for its verdict words
 from stats.analyze import analyze
 HEAD = set(ALL_TASKS) if SUMMARY['full_129']['headline'] == '129' else set(FLOOR)
-res = analyze([r for r in rows if r['task_id'] in HEAD], primary_models=(MODEL,))
+# headline (DESIGN.md section 10): recap vs none; fake data has only node, so it falls back
+HEADLINE = ('recap', 'none') if any(r['arm'] == 'recap' for r in rows) else ('node', 'none')
+res = analyze([r for r in rows if r['task_id'] in HEAD], primary_models=(MODEL,), headline=HEADLINE)
 json.dump(res, open(OUT / 'analysis.json', 'w'), indent=2, default=str)
 json.dump(res['moderators'], open(OUT / 'moderators.json', 'w'), indent=2)
 for m, h in res['primary'].items():
-    print(f"H1 {m} node-none: mean={h['mean']:.3f} CI=[{h['lo']:.3f}, {h['hi']:.3f}] "
+    print(f"H1 {m} {HEADLINE[0]}-none: mean={h['mean']:.3f} CI=[{h['lo']:.3f}, {h['hi']:.3f}] "
           f"wins/losses={h['wins']}/{h['losses']} p_holm={h['p_holm']:.4f} -> {h['verdict']}")"""),
 ]
 

@@ -326,8 +326,110 @@ dataset) and writes three push directories.
   reporting. It was written before any memory-arm result. Where it and PREREG.md disagree,
   PREREG.md governs. Its 22:15Z entry records this: H1(31B) and H1(12B) both stay confirmatory,
   with Holm over the two models.
-- **TODO before the first arm run.** Record the scope that `choose_scope` picks from the
-  throughput kernel's numbers: tasks, exploratory arms per model and concurrency.
+- **2026-11-08, scope, recorded before any arm run.** The throughput kernel
+  (`patrickpassos/renor-gemma4-throughput` v1; 31B, arm `none`, 16 tasks, 4x L4, 48 CPUs)
+  measured these numbers. They are not results.
+
+  | | concurrency 8 | concurrency 16 |
+  | --- | --- | --- |
+  | tasks per hour | 21.3 | 16.6 |
+  | median agent minutes per task | 15.9 | 32.2 |
+  | model calls per task, median / mean | 46 / 68.3 | 67 / 91.3 |
+
+  Concurrency 16 is slower: agents share the model server and each takes twice as long. The free
+  GPU quota left is 25.9 quota-hours (L4x4 counts double, so about 12.9 wall-hours) and it resets
+  on Sat 14 Nov 00:00 UTC, after the Writeup deadline (12 Nov). `choose_scope` with the
+  preregistered 3 + 3 headline runs and 11.5 wall-hours returns `Scope(n_tasks=49, exploratory={31B:
+  ()}, hours=14.32, fits=False)`: the preregistered plan does not fit even at the 48-task floor.
+- **2026-11-08, deviation: 2 runs per headline arm, not 3** (PREREG.md sections 3, 5 and 7). Reason:
+  a task takes about 16 min, not the 5.5 min assumed, and 25.9 quota-hours remain until a reset
+  that comes after the deadline. Rule: under a fixed budget, prefer more tasks over more repeats,
+  with at least 2 runs per arm. `HEADLINE_RUNS = 4` (`runner/budget.py`), `R_HEADLINE = 2`
+  (`pipeline/experiment.py`). The analysis is unchanged except that per-task means take values in
+  {0, 1/2, 1}, and the flip rate is between the 2 runs.
+- **2026-11-08, deviation: seeded subset.** `stratified_subset` orders each repo's tasks by
+  sha256(f"{seed}:{task_id}") with the published seed 20261107 (was sha256(task_id), no seed).
+  Round-robin across repos as before, so every repo keeps tasks and leave-one-repo-out works. It
+  never looks at outcomes or task length, and every arm and run gets the same tasks. Tasks the
+  validation kernel (`kernels/envcheck`) finds invalid under the scorer-like sandbox are dropped
+  with a stated reason. Each one is replaced deterministically by the next task in the seeded
+  order, the same rule applied to the remaining tasks.
+- **2026-11-08, scope.** 31B only, 48 tasks x 2 runs x {`none`, `node`}, concurrency 8. No
+  exploratory arms on 31B. Ablations (12B, or `shuffled` on a smaller subset) run only if the
+  headline finishes under budget, and are labelled as such. GPU-hours per phase at concurrency 8
+  (each session adds about 0.15 h for package install and model load):
+
+  | phase | wall h | quota h |
+  | --- | --- | --- |
+  | baseline: `none` x 2 (96 episodes) | 4.7 | 9.3 |
+  | distil: lessons from run 1 of `none` (estimate; needs the snapshot fix) | 0.5 | 1.0 |
+  | skill smoke after the memory-protocol fix (2 tasks) | 0.4 | 0.8 |
+  | headline: `node` x 2 (96 episodes, 4 LORO folds) | 4.7 | 9.3 |
+  | total | 10.3 | 20.4 of 25.9 |
+
+  The baseline runs in one session, about 4.7 h against Kaggle's 12 h limit. Its output is
+  resumable: a complete results directory is skipped, an incomplete one is rerun.
+- **2026-11-08, test environment.** The throughput run used swegemma's `--sandbox subprocess`,
+  which shares Kaggle's Python 3.12 site-packages and skips test-dependency setup, so its
+  resolution counts are not the scorer's. Every arm run now uses `kernels/scorer_sandbox.py`, a
+  clean CPython 3.13 venv per task that is set up by the harness's own Docker path (the
+  Dockerfile.sandbox pip layer, then the competition wheels and sandbox/setup.py). Every run
+  records the sha256 of the code dataset it ran (`code_sha256` in `out/<model>/sessions.jsonl`).
+  The `none` and memory arms share all of that code; only memory-arm files may change between
+  them.
+- **2026-11-08 22:40 UTC, headline arm changed, decided before any memory-arm run and from
+  no-memory baseline traces only.** The 16 throughput traces (31B, arm `none`, concurrency 8; no
+  memory arm has run) show context compaction is the common case:
+  - 13 of 16 tasks compacted (median 1.5 compactions, max 4);
+  - 83 exact repeats of a file read, command or explorer question; 53 of them come after a compaction;
+  - all 3 context overflows came right after an `edit_file` call at about 13k prompt tokens.
+
+  **Headline (confirmatory):** the in-task working-memory recap after compaction (arm `recap`)
+  against no memory (`none`), 31B, 48 tasks x 2 runs. `stats/analyze.py:HEADLINE = ("recap",
+  "none")`. Same primary outcome (resolved), same test and decision rule (PREREG.md section 5).
+  **Arm 2, only if the budget allows:** the cross-task lessons (`node`) against `none`, analysed
+  with `analyze(..., headline=("node", "none"))` and labelled as secondary. The recap is built in
+  memory-arm files only.
+- **2026-11-08, key secondary outcome, fixed before any memory-arm run: the repeated-action rate**
+  (`stats/repeats.py`, tested in `tests/test_repeats.py`). It counts only the root agent's own
+  tool calls (the explorer runs in its own context).
+  - **Compaction:** a root-agent turn whose prompt tokens fall below 0.7 x the previous turn's,
+    when the previous turn had more than 8,000. The traces carry no explicit compaction event.
+  - **Repeat:** a tool call at or after the first compaction, with the same tool and identical
+    normalized arguments (whitespace collapsed, paths normalized) as an earlier call in the same
+    task. A `read_file` repeat counts only if the file was not edited since the most recent
+    identical read.
+  - **Rate:** repeats / compactions per task attempt. It is undefined for an attempt with no
+    compaction.
+  - **Reported:** per arm, the mean over tasks of the per-task mean over runs, and the paired
+    bootstrap 95% CI of `recap - none` over the tasks that have a rate in both arms
+    (`stats.analyze.repeat_rate_secondary`, 10,000 resamples, seed 20261107).
+
+  Resolved rate stays the primary outcome. On the 16 baseline throughput traces: 15 tasks
+  compacted and the mean rate was 6.45. It is heavy-tailed: one task, requests_6757, had 202
+  repeats in 3 compactions.
+- **2026-11-08, base-timeout rule:** a task whose tests time out on the base commit is excluded
+  as invalid, unless its gold patch resolves within the same 300 s verification timeout that
+  scores agent patches. Applied by rule in `kernels/envcheck`, no case-by-case calls.
+- **2026-11-08, test environment, option A.** The scorer reads a private wheel set. The public
+  competition wheels lack test dependencies, so `kernels/scorer_sandbox.py` makes three changes
+  after the harness's own setup:
+  - adds per-repo test dependencies from PyPI (Python 3.13, released before 13 Oct 2026). They
+    come from every snapshot's pyproject.toml and requirements*.txt, read with the competition's
+    sandbox/setup.py functions, plus typing_inspection, dirty_equals, attrs, pytest-httpbin and
+    httpbin. They are added only for names that have no competition wheel;
+  - removes any installed copy of the task's own package, so tests import the repo under test;
+  - for rich, pins Pygments to the newest release on or before the snapshot's HEAD commit date.
+- **Validity funnel** (`kernels/envcheck`, harness `verify_task`, base and gold):
+
+  | step | tasks | notes |
+  | --- | --- | --- |
+  | public tasks | 129 | fastapi 67, rich 48, requests 13, httpx 1 |
+  | valid in the public environment (envcheck v1) | 37 | gold failed on 86: fastapi 66 (typing_inspection 60, dirty_equals 6), requests 10, rich 9, httpx 1 (own package shadowed) |
+  | valid after option A (envcheck v2) | FUNNEL_N | FUNNEL_NOTES |
+
+  The 48-task subset is rebuilt from the seeded order over the valid tasks only, still stratified
+  by repo (`envcheck/validated_tasks.json`). FUNNEL_SKEW
 
 ## 11. Stretch: rejection-sampling LoRA (exploratory, after the headline runs)
 

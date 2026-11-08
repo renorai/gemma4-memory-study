@@ -9,7 +9,7 @@ from harness import (files_opened, lesson_ids_shown, outcome_of, patch_files, pa
                      read_run, read_tasks, read_trace, repo_short, symbols_touched)
 from memory import LessonStore, RepoIndex
 from pipeline.distill import DistillStats, anchor_candidates, distill_attempt, parse_completion
-from pipeline.experiment import read_jsonl, run_protocol
+from pipeline.experiment import R_HEADLINE, read_jsonl, run_protocol
 from runner.probes import key_recurrence_probe
 from stats.analyze import VERDICTS, analyze
 
@@ -36,7 +36,7 @@ class E2E(unittest.TestCase):
 
     def test_every_arm_run_and_task(self):
         ids = {t.task_id for t in self.tasks}
-        for arm, runs in (("none", 3), ("node", 3), ("text", 1), ("node_khop", 1), ("shuffled", 1)):
+        for arm, runs in (("none", R_HEADLINE), ("node", R_HEADLINE), ("text", 1), ("node_khop", 1), ("shuffled", 1)):
             for r in range(1, runs + 1):
                 self.assertEqual(set(self.by(arm, r)), ids, (arm, r))
 
@@ -86,13 +86,13 @@ class E2E(unittest.TestCase):
         self.assertGreater(r["model_calls"], 0)
 
     def test_analysis_runs_and_does_not_fire_on_the_toy(self):
-        res = analyze(self.rows, primary_models=(M,))
+        res = analyze(self.rows, primary_models=(M,), headline=("node", "none"))
         h = res["primary"][M]
         self.assertIn(h["verdict"], VERDICTS)
         self.assertFalse(h["supported"])                 # 6 tasks can support nothing
         self.assertEqual(h["n_pairs"], 6)
-        self.assertEqual(len(res["per_run_mcnemar"][M]), 3)
-        self.assertEqual(res["flip_rate"][f"{M}/none"]["runs"], 3)
+        self.assertEqual(len(res["per_run_mcnemar"][M]), R_HEADLINE)
+        self.assertEqual(res["flip_rate"][f"{M}/none"]["runs"], R_HEADLINE)
         self.assertTrue(all(c["label"].startswith("exploratory") for c in res["exploratory"]))
         self.assertIn(M, res["moderators"])
 

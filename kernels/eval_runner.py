@@ -6,10 +6,15 @@ fields the CLI never passes:
                                    default 'data/graphs' is relative and misses the competition data)
     context_cache_config,          the values in the official Getting Started notebook, so context
     events_compaction_config       compaction starts at about 14k tokens as in scoring
+and, for --sandbox subprocess, swaps swegemma's SubprocessManager for kernels/scorer_sandbox.py's
+DockerSandbox (a clean Python 3.13 venv set up by the harness's own Docker path), so agent runs
+and scoring see the scorer's test environment, not Kaggle's site-packages. It needs
+SWEGEMMA_PY313 and SWEGEMMA_IMAGE_SP (common.setup sets them from the attached scorer env).
 """
 import os
 import sys
 
+import scorer_sandbox
 import swegemma.cli as cli
 from google.adk.agents.context_cache_config import ContextCacheConfig
 from google.adk.apps._configs import EventsCompactionConfig
@@ -31,6 +36,7 @@ def _config(**kw):
 
 
 cli.EvalConfig = _config
+scorer_sandbox.patch_harness()
 
 if __name__ == "__main__":
     sys.exit(cli.main(sys.argv[1:]))

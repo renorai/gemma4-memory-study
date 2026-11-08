@@ -16,7 +16,9 @@
   "competition_sources": [
     "gemma-4-developer-agent"
   ],
-  "kernel_sources": [],
+  "kernel_sources": [
+    "KAGGLE_USERNAME/renor-gemma4-envcheck"
+  ],
   "model_sources": [
     "MODEL_SOURCE_GEMMA4_31B"
   ],

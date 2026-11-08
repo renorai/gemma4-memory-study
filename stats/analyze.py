@@ -8,7 +8,10 @@ from typing import Iterable, Mapping
 from . import (flip_rates, holm, mcnemar_exact, mean_over_runs, paired_bootstrap_ci, paired_diffs,
                process_table, run_matrix, sign_test)
 
-HEADLINE = ("node", "none")                 # H1(model): node-anchored beats no memory
+# Headline (DESIGN.md section 10, 2026-11-08, before any memory-arm run): the in-task working-memory
+# recap after compaction ("recap") against no memory. PREREG.md had node against none; that is now
+# arm 2, run if the budget allows, and is analysed through `headline=("node", "none")`.
+HEADLINE = ("recap", "none")
 PRIMARY_MODELS = ("gemma-4-31b-it-qat-w4a16-ct", "gemma-4-12b-it-qat-w4a16-ct")
 EXPLORATORY = (("text", "none"), ("node", "text"), ("node_khop", "node"), ("node", "shuffled"),
                ("node_khop", "none"))
@@ -57,15 +60,34 @@ def moderators(rows, model):
     return out
 
 
-def analyze(rows: Iterable[Mapping], primary_models=PRIMARY_MODELS) -> dict:
+def repeat_rate_secondary(rows, x, y, model):
+    """Key secondary outcome (stats/repeats.py): per arm, the mean over tasks of the per-task mean
+    repeat_rate (runs with no compaction have none), and the paired bootstrap 95% CI of x - y over
+    the tasks that have a rate in both arms."""
+    m = mean_over_runs([r for r in rows if r["model"] == model], "repeat_rate")
+    by = {(r["arm"], r["task_id"]): r["repeat_rate"] for r in m}
+    out = {"model": model, "x": x, "y": y, "label": "key secondary, repeated actions per compaction"}
+    for arm in (x, y):
+        v = [val for (a, _t), val in by.items() if a == arm]
+        out[f"mean_{arm}"] = sum(v) / len(v) if v else None
+        out[f"n_tasks_{arm}"] = len(v)
+    tasks = sorted(t for (a, t) in by if a == x and (y, t) in by)
+    if tasks:
+        out.update(paired_bootstrap_ci([by[(x, t)] - by[(y, t)] for t in tasks], n_boot=N_BOOT,
+                                       alpha=ALPHA, seed=SEED))
+    return out
+
+
+def analyze(rows: Iterable[Mapping], primary_models=PRIMARY_MODELS, headline=HEADLINE) -> dict:
     rows = list(rows)
     models = sorted({r["model"] for r in rows})
     prim = [m for m in primary_models if m in models]
-    res = {"primary": {}, "per_run_mcnemar": {}, "exploratory": [], "flip_rate": {}, "moderators": {},
-           "process": process_table(rows)}
+    res = {"headline": list(headline), "primary": {}, "per_run_mcnemar": {}, "secondary": {},
+           "exploratory": [], "flip_rate": {}, "moderators": {}, "process": process_table(rows)}
     for m in prim:
-        res["primary"][m] = contrast(rows, *HEADLINE, m)
-        res["per_run_mcnemar"][m] = per_run_mcnemar(rows, *HEADLINE, m)
+        res["primary"][m] = contrast(rows, *headline, m)
+        res["per_run_mcnemar"][m] = per_run_mcnemar(rows, *headline, m)
+        res["secondary"][m] = repeat_rate_secondary(rows, *headline, m)
     adj = holm({m: h["sign_p"] for m, h in res["primary"].items()}, ALPHA) if prim else {}
     for m, h in res["primary"].items():
         h["p_holm"] = adj[m]["p_holm"]

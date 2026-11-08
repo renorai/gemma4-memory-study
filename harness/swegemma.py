@@ -144,6 +144,7 @@ def read_trace(path):
     with open(path, encoding="utf-8") as f:
         t = json.load(f)
     steps, model_calls, pin, pout, stamps = [], 0, 0, 0, []
+    root, turn, root_pt = None, -1, []          # root agent = author of the first agent step
     for s in t.get("steps", []):
         ts = _iso_seconds(s["timestamp"]) if s.get("timestamp") else None
         if ts is not None:
@@ -152,6 +153,13 @@ def read_trace(path):
             continue
         model_calls += 1
         m = s.get("metrics") or {}
+        author = (s.get("extra") or {}).get("author")
+        if root is None:
+            root = author
+        is_root = author == root
+        if is_root:
+            turn += 1
+            root_pt.append(int(m.get("prompt_tokens") or 0))
         pin += int(m.get("prompt_tokens") or 0)
         pout += int(m.get("completion_tokens") or 0)
         results = {}
@@ -162,13 +170,14 @@ def read_trace(path):
             raw = c.get("arguments", (c.get("function") or {}).get("arguments", {}))
             out = results.get(c.get("tool_call_id") or c.get("id"))
             steps.append({"tool": name, "args": _args(raw),
-                          "output": out if isinstance(out, str) else json.dumps(out)[:5000] if out else ""})
+                          "output": out if isinstance(out, str) else json.dumps(out)[:5000] if out else "",
+                          "author": author, "turn": turn if is_root else None})
     fm = t.get("final_metrics") or {}
     pin = int(fm.get("total_prompt_tokens") or pin)
     pout = int(fm.get("total_completion_tokens") or pout)
     wall = (max(stamps) - min(stamps)) if len(stamps) >= 2 else None
     return {"steps": steps, "model_calls": model_calls, "tokens_in": pin, "tokens_out": pout,
-            "wall_s": wall}
+            "wall_s": wall, "root_prompt_tokens": root_pt}
 
 
 def trace_path(results_dir, task_id):
@@ -193,14 +202,16 @@ def read_run(results_dir, tasks, *, model, arm, run, fold=None):
             continue
         tp = trace_path(results_dir, t.task_id)
         tr = read_trace(tp) if tp.exists() else {"steps": [], "model_calls": 0, "tokens_in": 0,
-                                                  "tokens_out": 0, "wall_s": None}
+                                                  "tokens_out": 0, "wall_s": None, "root_prompt_tokens": []}
         wall = tr["wall_s"] if tr["wall_s"] is not None else float(
             _first(r, ("duration_seconds", "wall_time", "elapsed_seconds", "duration"), 0) or 0)
         out.append({"task_id": t.task_id, "repo": t.repo, "model": model, "arm": arm, "run": run,
                     "fold": fold or t.repo, "prompt": t.problem, "outcome": "success" if outcome_of(r) else "failure",
                     "success": outcome_of(r), "steps": tr["steps"], "model_calls": tr["model_calls"],
                     "tokens_in": tr["tokens_in"], "tokens_out": tr["tokens_out"], "wall_s": wall,
-                    "patch": read_patch(results_dir, t.task_id), "results_dir": str(results_dir)})
+                    "patch": read_patch(results_dir, t.task_id), "results_dir": str(results_dir),
+                    "error": r.get("error"), "root_prompt_tokens": tr["root_prompt_tokens"],
+                    "context_overflow": "ContextWindowExceeded" in str(r.get("error") or "")})
     return out
 
 

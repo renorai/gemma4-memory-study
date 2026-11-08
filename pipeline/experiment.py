@@ -20,8 +20,9 @@ from harness.swegemma import files_opened, is_recall, lesson_ids_shown, patch_fi
 from memory import LessonStore, RepoIndex, RetrievalConfig
 from pipeline.distill import DistillStats, distill_attempt
 from runner.build_submission import build
+from stats.repeats import repeat_metrics
 
-R_HEADLINE = 3
+R_HEADLINE = 2                     # DESIGN.md section 10, 2026-11-08 (PREREG said 3)
 HEADLINE = ("none", "node")
 EXPLORATORY = ("text", "node_khop", "shuffled")
 HIT_KS = (1, 3, 5)
@@ -82,6 +83,8 @@ def to_row(a, gold_files=()):
     row = {k: a[k] for k in ("model", "arm", "run", "task_id", "repo", "fold", "success",
                              "model_calls", "tokens_in", "tokens_out", "wall_s")}
     row["tool_calls"] = len(a["steps"])
+    row["context_overflow"] = int(bool(a.get("context_overflow")))   # its own outcome, not a plain failure
+    row.update(repeat_metrics(a))        # key secondary outcome (stats/repeats.py)
     row["recalls"] = sum(1 for s in a["steps"] if is_recall(s))
     row["lessons_shown"] = len(lesson_ids_shown(a["steps"]))
     gold = set(gold_files)

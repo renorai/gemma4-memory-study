@@ -193,12 +193,42 @@ class SwegemmaEval:
             raise SystemExit(f"swegemma eval failed (rc={rc}); see {results_dir.parent / 'eval.log'}")
 
 
+def validated_exclusions():
+    """{task_id: reason} of tasks the envcheck kernel found invalid under the scorer-like sandbox
+    (its attached output's envcheck/summary.json). Fails closed when it is not attached."""
+    hits = sorted(glob.glob(str(INPUT / "**" / "envcheck" / "summary.json"), recursive=True))
+    if not hits:
+        raise SystemExit("task validation not attached: no envcheck/summary.json under /kaggle/input")
+    return json.loads(Path(hits[0]).read_text())["excluded"]
+
+
+def code_sha256(code):
+    """sha256 over the attached code dataset: sorted relative paths and file bytes (.py, .md,
+    .txt, .yaml, .json), so every run's output names the exact code it ran."""
+    import hashlib
+    h = hashlib.sha256()
+    for p in sorted(Path(code).rglob("*")):
+        rel = p.relative_to(code)
+        if (p.is_file() and len(rel.parts) > 1 and p.suffix in (".py", ".md", ".txt", ".yaml", ".json")
+                and "__pycache__" not in rel.parts):
+            h.update(rel.as_posix().encode() + b"\0" + p.read_bytes() + b"\0")
+    return h.hexdigest()
+
+
 def setup(alias):
-    """Common start: code on sys.path, harness installed, vLLM up, models.yaml written."""
+    """Common start: code on sys.path, harness installed, scorer-like sandbox env unpacked,
+    vLLM up, models.yaml written, code hash recorded."""
     code = find_code_root()
     sys.path.insert(0, str(code))
     comp = find_competition()
     install_wheelhouse()
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import scorer_sandbox
+    env = scorer_sandbox.load_env()
+    digest = code_sha256(code)
+    (WORK / "code_sha256.txt").write_text(digest + "\n")
+    (WORK / "scorer_env.json").write_text(json.dumps(env, indent=2))
+    log("code sha256:", digest, "| scorer env: python", env["python"])
     from harness.swegemma import models_yaml
     template = next(iter(sorted(comp.glob("**/models*.yaml"))), None)
     my = WORK / "models.yaml"

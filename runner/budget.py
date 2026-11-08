@@ -1,17 +1,20 @@
 """Compute planner: arithmetic on MEASURED throughput (kernels/throughput.py), never a guess.
 
 Cut order, fixed in PREREG.md section 7 before any arm run: exploratory arms on 12B, then
-exploratory arms on 31B, then tasks (stratified by repo, down to MIN_TASKS). Headline runs
-(3 x none, 3 x node, per model) are never cut.
+exploratory arms on 31B, then tasks (stratified by repo, down to MIN_TASKS). Headline runs are
+never cut by this rule. Deviation (DESIGN.md section 10, 2026-11-08): headline runs are 2 x none
++ 2 x node per model, not 3 + 3, because measured throughput and the free GPU quota left before
+the deadline do not fit 3.
 """
 from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass, field
 
-HEADLINE_RUNS = 6            # 3 x none + 3 x node
+HEADLINE_RUNS = 4            # 2 x none + 2 x node (DESIGN.md section 10, 2026-11-08; PREREG said 3 + 3)
 EXPLORATORY_ARMS = ("text", "node_khop", "shuffled")
 MIN_TASKS = 48
+SUBSET_SEED = 20261107      # published; the PREREG.md statistics seed
 MODELS = ("gemma-4-31b-it-qat-w4a16-ct", "gemma-4-12b-it-qat-w4a16-ct")
 
 
@@ -53,14 +56,16 @@ def choose_scope(tasks_per_hour, hours_available, n_all=129, min_tasks=MIN_TASKS
     return s
 
 
-def stratified_subset(tasks, n):
-    """Deterministic, outcome-blind: per repo, order tasks by sha256(task_id); take round-robin
-    across repos (repos in name order) until n tasks."""
+def stratified_subset(tasks, n, seed=SUBSET_SEED):
+    """Seeded random, outcome-blind and length-blind: per repo, order tasks by
+    sha256(f"{seed}:{task_id}") (a random permutation fixed by the published seed); take
+    round-robin across repos (repos in name order) until n tasks. Every repo keeps tasks, so
+    leave-one-repo-out still works, and every arm and run gets the same subset."""
     by = {}
     for t in tasks:
         by.setdefault(t.repo, []).append(t)
     for r in by:
-        by[r].sort(key=lambda t: hashlib.sha256(t.task_id.encode()).hexdigest())
+        by[r].sort(key=lambda t: hashlib.sha256(f"{seed}:{t.task_id}".encode()).hexdigest())
     out, i = [], 0
     while len(out) < min(n, len(tasks)):
         for r in sorted(by):

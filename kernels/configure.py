@@ -7,6 +7,8 @@ Writes:
     dist/kaggle/code/        this folder's code + dataset-metadata.json -> `kaggle datasets create -p`
     dist/kaggle/throughput/  kernel-metadata.json + throughput.py + common.py -> `kaggle kernels push -p`
     dist/kaggle/arm_run/     kernel-metadata.json + arm_run.py + common.py -> `kaggle kernels push -p`
+    dist/kaggle/envcheck/    CPU kernel: builds the scorer-like sandbox env and validates the tasks;
+                             the GPU kernels attach its output (kernel_sources)
 
 It only replaces the placeholders (KAGGLE_USERNAME, MODEL_SOURCE_GEMMA4_31B, the wheels dataset)
 and refuses to write metadata that still contains one.
@@ -43,7 +45,7 @@ def configure(user, model_source, wheels, out):
     (code / "dataset-metadata.json").write_text(json.dumps(
         {"title": "renor gemma4 memory code", "id": f"{user}/renor-gemma4-code",
          "licenses": [{"name": "apache-2.0"}]}, indent=2))
-    for k in ("throughput", "arm_run"):
+    for k in ("envcheck", "throughput", "arm_run"):
         d = out / k
         d.mkdir(parents=True)
         meta = json.loads((ROOT / "kernels" / k / "kernel-metadata.json").read_text())

@@ -52,8 +52,15 @@ class KernelTests(unittest.TestCase):
             self.assertIn("gemma-4-developer-agent", meta["competition_sources"])
             self.assertEqual(meta["kernel_type"], "script")
             compile((ROOT / "kernels" / k / meta["code_file"]).read_text(), k, "exec")
+        # Only the CPU envcheck kernel has internet: it builds the scorer-like environment once
+        # (scorer_sandbox.build_env/build_overlays, PyPI). The GPU kernels attach its output.
+        env = json.loads((ROOT / "kernels" / "envcheck" / "kernel-metadata.json").read_text())
+        self.assertTrue(env["enable_internet"])
+        self.assertFalse(env["enable_gpu"])
         for p in (ROOT / "kernels").glob("**/*.py"):
             for url in re.findall(r"https?://[^\s\"']+", p.read_text()):
+                if p.name == "scorer_sandbox.py" and url.startswith("https://pypi.org/pypi/"):
+                    continue
                 self.assertRegex(url, r"^http://(127\.0\.0\.1|localhost)", (p.name, url))
 
     def test_throughput_kernel_reports_what_was_asked(self):
@@ -106,7 +113,7 @@ class NotebookTests(unittest.TestCase):
                                capture_output=True, text=True, timeout=300)
             self.assertEqual(r.returncode, 0, r.stderr[-3000:])
             self.assertIn("fake harness (NOT results)", r.stdout)
-            self.assertIn("node-none", r.stdout)
+            self.assertRegex(r.stdout, r"H1 \S+ (recap|node)-none")     # headline: recap when present (DESIGN.md section 10)
             for f in ("analysis.json", "rows-all.jsonl", "tables.md", "moderators.json"):
                 self.assertTrue((Path(d) / "out" / f).exists(), f)
 

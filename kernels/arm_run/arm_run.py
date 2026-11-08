@@ -10,7 +10,8 @@ Edit CONFIG (or set ARM_RUN_CONFIG to a JSON string) before `kaggle kernels push
     resume_from a /kaggle/input path holding an earlier session's /kaggle/working/out
                 (attach that session's output as a dataset), or null
 
-Each phase is idempotent: a results directory that already has task_results.jsonl is skipped,
+Each phase is idempotent: a results directory whose task_results.jsonl has a row for every task is
+skipped (an incomplete one is rerun),
 so a session that hits the 12 h wall can be resumed by the next one.
 """
 import glob
@@ -23,15 +24,15 @@ for p in sorted(glob.glob("/kaggle/input/**/kernels/common.py", recursive=True))
     sys.path.insert(0, os.path.dirname(p))
     break
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)) + "/..")
-from common import WORK, SwegemmaEval, chat, log, setup  # noqa: E402
+from common import WORK, SwegemmaEval, chat, log, setup, validated_exclusions  # noqa: E402
 
-CONFIG = {
+CONFIG = {                       # defaults = the scope recorded in DESIGN.md section 10 (2026-11-08)
     "model": "gemma-4-31b-it-qat-w4a16-ct",
     "phases": ["baseline", "distill", "headline", "explore", "analyze"],
-    "n_tasks": 129,
-    "exploratory": ["text", "node_khop", "shuffled"],
+    "n_tasks": 48,
+    "exploratory": [],
     "concurrency": 8,
-    "runs": 3,
+    "runs": 2,
     "resume_from": None,
 }
 
@@ -39,9 +40,14 @@ CONFIG = {
 class Resumable(SwegemmaEval):
     def __call__(self, submission_dir, tasks, results_dir):
         from pathlib import Path
-        if (Path(results_dir) / "task_results.jsonl").exists():
-            log("skip (done):", results_dir)
-            return
+        tr = Path(results_dir) / "task_results.jsonl"
+        if tr.exists():
+            done = sum(1 for line in tr.read_text().splitlines() if line.strip())
+            if done >= len(tasks):
+                log("skip (done):", results_dir)
+                return
+            log(f"incomplete ({done}/{len(tasks)}), rerunning:", results_dir)   # a session cut mid-run
+            shutil.rmtree(results_dir)
         super().__call__(submission_dir, tasks, results_dir)
 
 
@@ -58,7 +64,16 @@ def main():
     out = WORK / "out"
     if cfg["resume_from"] and not out.exists():
         shutil.copytree(cfg["resume_from"], out)
-    tasks = stratified_subset(read_tasks(comp / "tasks.jsonl"), cfg["n_tasks"])
+    excluded = validated_exclusions()
+    tasks = stratified_subset([t for t in read_tasks(comp / "tasks.jsonl") if t.task_id not in excluded],
+                              cfg["n_tasks"])
+    (out / alias).mkdir(parents=True, exist_ok=True)
+    with open(out / alias / "sessions.jsonl", "a") as f:     # one line per session: code, env, config, tasks
+        f.write(json.dumps({"code_sha256": (WORK / "code_sha256.txt").read_text().strip(),
+                            "scorer_env": json.loads((WORK / "scorer_env.json").read_text()),
+                            "config": cfg, "excluded": excluded,
+                            "task_ids": [t.task_id for t in tasks]}) + "\n")
+    log("tasks:", len(tasks), [t.task_id for t in tasks])
     by_id = {t.task_id: t for t in tasks}
     ev = Resumable(comp, my, concurrency=cfg["concurrency"])
     lessons_path = out / alias / "lessons.jsonl"
