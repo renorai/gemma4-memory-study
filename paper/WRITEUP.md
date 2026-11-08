@@ -106,6 +106,9 @@ thinking_budget 4096. One base model serves both agents.
 
 **Fields.** A lesson has a title (at most 80 characters), a text (at most 400), the outcome of its
 source attempt, its anchor symbol in the source repository, and the anchor's transferable keys.
+It is stored the way Renor stores a memory: one statement (title and text), with a subject (the
+anchor's leaf name), the time it was written, and a `replaces` link when it corrects an earlier
+lesson (section 2.4).
 
 **How lessons are written.** After each first-run no-memory attempt, the same model reads:
 - a compact view of its own trace;
@@ -132,20 +135,47 @@ For a symbol s, keys(s) contains:
 - kind: the symbol kind.
 
 The first five types are *strong*. A lesson is eligible for s only if it shares a strong key with
-keys(s). Its score is Σ w(type) · idf(key) over the shared keys. The weights and idf are fixed in
-the preregistration.
+keys(s). The keys decide which lessons are candidates; the weighted key score Σ w(type) · idf(key)
+over the shared keys is kept only as the last tiebreak. The weights and idf are fixed in the
+preregistration.
 
-### 2.4 Arms
+### 2.4 Retrieval: Renor's memory design applied to code-structure-anchored lessons
 
-All memory arms return at most 5 lessons within 1,600 characters, at most 2 from one source task,
-and render them identically.
+The memory is **Renor's memory design (keyword-OR with stemming, supersession, token-budgeted
+recall) applied to code-structure-anchored lessons**. Renor is an AI memory engine; we ported its
+retrieval rules from its TypeScript source to a few hundred lines of standard-library Python, because
+the skill runs offline inside the task sandbox. Each rule cites its source file and line in
+`memory/renor.py`, and the tests replay Renor's own test cases. **No embeddings are used anywhere**:
+the sandbox has no embedding model, and Renor's keyword lane needs none.
+
+1. **Candidates** come from code structure. A lesson is a candidate when it shares a strong key
+   with a seed symbol (node) or with a seed's call-graph neighbour within 2 hops (node + k-hop).
+2. **Ranking** is Renor's keyword lane. The query is the OR of the content words of the issue text
+   and the named symbols, with stop words removed. A hyphenated or snake_case word is kept as one
+   phrase. Words are Porter-stemmed, and each candidate is scored with BM25 (k1 1.2, b 0.75) over
+   its title and text. This reproduces SQLite FTS5's `porter unicode61` tokenizer and its bm25()
+   score, and a test checks it against SQLite. Equal scores are ordered newest first.
+3. **Supersession.** A later lesson that reads as a correction of an earlier lesson on the same
+   subject supersedes it. Correction cues include "actually", "instead", "not X but Y" and
+   "no longer", and the two lessons must share enough words. The link is written when the lesson
+   is stored, and also inferred over the retrieved page. The correction is listed first. The
+   superseded lesson is marked and listed right after it.
+4. **Token-budgeted page.** Recall returns the longest run of that order that fits Renor's default
+   page of 800 tokens. It returns at most 5 lessons, at most 2 from one source task. The sandbox
+   has no tokenizer, so tokens are a conservative estimate.
+
+### 2.5 Arms
+
+All memory arms share steps 2–4 and render lessons identically. They differ only in the candidate
+set:
 - **none:** no skill and no memory section.
-- **text** (ReasoningBank-style): BM25 of the issue text against title and text.
+- **text** (ReasoningBank-style keying): every lesson is a candidate, so this is Renor's keyword
+  lane alone, over title and text.
 - **node:** seeds are the symbols the agent names, plus repo symbols the issue names.
-- **node + k-hop:** seeds and their neighbours within 2 hops, score × 0.6 per hop.
+- **node + k-hop:** seeds and their neighbours within 2 hops.
 - **shuffled:** node, on a pool whose key sets are permuted across lessons.
 
-### 2.5 Evaluation protocol
+### 2.6 Evaluation protocol
 
 **Split.** Leave-one-repo-out: for each development repository, the submission's lessons come from
 the other three.

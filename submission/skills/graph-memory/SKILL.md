@@ -19,7 +19,8 @@ Then run the script with `run_skill_script`:
 - `--symbol`: a symbol you located, such as `Client.send` or `pkg.module.func`. Repeatable, at
   most 5. Leave it out on the first call.
 
-It prints up to 5 lessons, at most 1,600 characters, or `no lessons for this code`. It makes no
+It prints up to 5 lessons in a page of about 800 tokens, or `no lessons for this code`. If a later
+lesson corrects an earlier one, it is listed first and the earlier one is marked superseded. It makes no
 network or model call and writes no file. It reads the repository's Python source to find which
 lessons apply.
 

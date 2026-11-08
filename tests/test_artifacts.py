@@ -24,9 +24,14 @@ class PreregTests(unittest.TestCase):
         from stats.analyze import N_BOOT, SEED
         text = (ROOT / "PREREG.md").read_text()
         c = RetrievalConfig()
-        for k in ("k", "char_budget", "per_task_cap", "n_seeds", "hops", "hop_decay", "max_region",
+        for k in ("k", "per_task_cap", "n_seeds", "hops", "hop_decay", "max_region",
                   "bm25_k1", "bm25_b"):
             self.assertIn(f"{k} = {getattr(c, k)}", text, k)
+        # char_budget = 1600 was replaced by Renor's token budget before any memory-arm result:
+        # the change is a logged deviation (DESIGN.md section 10), never a silent edit.
+        self.assertIn("char_budget = 1600", text)
+        self.assertTrue(f"char_budget = 1600 is replaced by token_budget = {c.token_budget}"
+                        in (ROOT / "DESIGN.md").read_text(), "DESIGN.md section 10 must log the budget change")
         for t, w in WEIGHTS.items():
             self.assertIn(f"{t} {w}", text, t)
         self.assertIn("{" + ", ".join(sorted(STRONG, key=["api", "base", "deco", "exc", "name"].index)) + "}", text)

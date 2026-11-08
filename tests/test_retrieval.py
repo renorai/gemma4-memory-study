@@ -5,6 +5,8 @@ from pathlib import Path
 import fake_harness as fh
 from memory import (ARMS, Lesson, LessonError, LessonStore, NodeMemory, RepoIndex, RetrievalConfig,
                     TextMemory, keys_for, make_arm, mentioned_symbols, render)
+from memory.renor import count_tokens
+from memory.retrieval import render_one
 from memory.keys import has_strong, split_tokens
 
 M = fh.FAKE_MODEL
@@ -118,12 +120,13 @@ class ArmTests(Fixture):
         self.assertEqual([r.lesson for r in got], [self.sign])
         self.assertEqual(got[0].via, "hop:2")
         direct = make_arm("node_khop", self.store).recall(self.ix["gamma"], "", ["add_signature"])
-        self.assertAlmostEqual(got[0].score, direct[0].score * 0.6 ** 2)
+        self.assertGreater(direct[0].struct, 0)
+        self.assertAlmostEqual(got[0].struct, direct[0].struct * 0.6 ** 2)   # the anchor-key score decays
 
     def test_seeds_from_task_text(self):
         self.assertEqual(self.recall("node", "beta", text="`Session.send` is wrong"), [self.send])
 
-    def test_text_arm_is_bm25_over_title_and_text(self):
+    def test_text_arm_is_renor_keyword_over_title_and_text(self):
         self.assertEqual(self.recall("text", "gamma", text="signer"), [self.sign])
         self.assertEqual(self.recall("text", "gamma", text="unrelated words"), [])
 
@@ -143,7 +146,9 @@ class ArmTests(Fixture):
         for arm in ("text", "node", "node_khop"):
             got = make_arm(arm, many, cfg).recall(self.ix["beta"], "lesson send", ["Session.send"])
             self.assertLessEqual(len(got), cfg.k)
-            self.assertLessEqual(len(render(got)), cfg.char_budget + 200)
+            self.assertTrue(got)
+            used = sum(count_tokens(render_one(r.lesson, r.superseded_by)) + 1 for r in got)
+            self.assertLessEqual(used, cfg.token_budget)
             per = {}
             for r in got:
                 per[r.lesson.source_task] = per.get(r.lesson.source_task, 0) + 1

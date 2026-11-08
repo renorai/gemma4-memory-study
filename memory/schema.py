@@ -13,6 +13,15 @@ Fields (DESIGN.md section 4 explains each):
     source_task   harness task id of that attempt
     source_model  the Gemma 4 model that made the attempt AND distilled the lesson
     source_run    run id of the attempt (provenance)
+    subject       what the lesson is about (Renor-style; optional): two lessons with different
+                  subjects never supersede each other (memory/renor.py, inferReplaces.ts:66)
+    at            when it was written, ISO-8601 UTC text (Renor-style; optional): orders newest
+                  first on equal scores and decides which of two statements is the later one
+    replaces      lesson_id of the earlier lesson this one corrects (Renor's `replaces` link;
+                  set by LessonStore.remember, or empty)
+
+subject, at and replaces are not in the content hash, so an older lessons.txt without them loads
+unchanged and keeps its ids.
 
 Python >= 3.8, standard library only: this file ships inside the submission's skill.
 """
@@ -55,6 +64,9 @@ class Lesson:
     source_model: str
     source_run: str = ""
     lesson_id: str = field(default="")
+    subject: str = ""
+    at: str = ""
+    replaces: str = ""
 
     def __post_init__(self):
         text = " ".join((self.text or "").split())
@@ -80,10 +92,18 @@ class Lesson:
         object.__setattr__(self, "text", text)
         object.__setattr__(self, "title", title)
         object.__setattr__(self, "keys", tuple(sorted(set(self.keys))))
+        object.__setattr__(self, "subject", " ".join((self.subject or "").split()).lower()[:MAX_TITLE_CHARS])
         if not self.lesson_id:
             digest = hashlib.sha256("\x1f".join(
                 [self.anchor, title, text, self.outcome, self.source_model]).encode()).hexdigest()[:12]
             object.__setattr__(self, "lesson_id", digest)
+        if self.replaces and self.replaces == self.lesson_id:
+            raise LessonError("a lesson cannot replace itself")
+
+    @property
+    def statement(self):
+        """The one statement Renor would store: the title, then the lesson."""
+        return f"{self.title}: {self.text}"
 
     def to_json(self):
         d = asdict(self)
@@ -94,4 +114,5 @@ class Lesson:
     def from_json(cls, line):
         d = json.loads(line)
         d["keys"] = tuple(d.get("keys", ()))
-        return cls(**d)
+        known = cls.__dataclass_fields__
+        return cls(**{k: v for k, v in d.items() if k in known})

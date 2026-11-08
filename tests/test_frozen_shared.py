@@ -1,0 +1,50 @@
+"""The code both arms share is frozen while the `none` baseline runs: this test fails when any of it
+differs from the frozen baseline commit.
+
+Memory-arm work (memory/, submission/skills/graph_memory/, the lesson store format, the
+memory-only prompt part runner/prompt_parts/memory.md) may change; nothing below may. The
+baseline commit is the branch head when the Renor-in-Python port started (8 Nov 2026); set
+FROZEN_BASELINE_COMMIT to compare against another one. Skipped, never passed, when git or that
+commit is not available (a shallow clone, a Kaggle dataset copy).
+"""
+import os
+import shutil
+import subprocess
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+BASELINE = os.environ.get("FROZEN_BASELINE_COMMIT", "9dee6df47434dffd62bedbd091c8235817009e56")
+
+# Shared by both arms: runner, harness adapter, kernels/common.py, eval_runner.py, the prompts and
+# agent config both arms ship, the budget (eval_config.yaml, runner/budget.py), the scoring
+# (harness outcome readers) and the vLLM flags (kernels/common.py).
+FROZEN = ("harness", "runner", "kernels/common.py", "kernels/eval_runner.py", "submission/agent.yaml",
+          "submission/sub_agents", "submission/prompts", "submission/eval_config.yaml")
+MEMORY_ONLY = ("runner/prompt_parts/memory.md",)
+
+
+def _git(*args, cwd=ROOT):
+    return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True)
+
+
+class FrozenSharedPaths(unittest.TestCase):
+    def test_shared_paths_match_the_frozen_baseline(self):
+        if shutil.which("git") is None or _git("rev-parse", "--show-toplevel").returncode != 0:
+            self.skipTest("not a git checkout")
+        if _git("cat-file", "-e", BASELINE + "^{commit}").returncode != 0:
+            self.skipTest(f"baseline commit {BASELINE} is not in this clone")
+        top = _git("rev-parse", "--show-toplevel").stdout.strip()
+        prefix = _git("rev-parse", "--show-prefix").stdout.strip()
+        paths = [prefix + p for p in FROZEN]
+        # the working tree (committed or not) and untracked files against the baseline, all paths
+        # relative to the repository root
+        changed = _git("diff", "--name-only", BASELINE, "--", *paths, cwd=top).stdout.split()
+        changed += _git("ls-files", "--others", "--exclude-standard", "--", *paths, cwd=top).stdout.split()
+        changed = sorted({c for c in changed if c[len(prefix):] not in MEMORY_ONLY
+                          and not c.endswith((".pyc",)) and "__pycache__" not in c})
+        self.assertEqual(changed, [], f"shared code changed since the frozen baseline {BASELINE[:12]}")
+
+
+if __name__ == "__main__":
+    unittest.main()

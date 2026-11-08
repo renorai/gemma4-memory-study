@@ -1,7 +1,8 @@
 """The memory arms (DESIGN.md section 3 and 5).
 
     none        nothing; the skill is not shipped at all.
-    text        ReasoningBank-style: BM25 of the task text against each lesson's title + text.
+    text        Renor's keyword lane alone over the whole pool (ReasoningBank-style text keying):
+                keyword-OR with Porter stemming over each lesson's title + text.
     node        node-anchored: seeds = repo symbols the agent names (and the task text mentions);
                 a lesson is eligible when it shares a STRONG transferable key with a seed.
     node_khop   node-anchored plus k-hop: as `node`, but also the seeds' call-graph neighbours
@@ -9,20 +10,26 @@
     shuffled    the control: exactly `node`, run on a pool whose key sets were permuted across
                 lessons (LessonStore.shuffled_keys). Same text, same budget, same code path.
 
+Renor's memory design, applied to code-structure-anchored lessons (memory/renor.py cites each
+rule's TypeScript source): the candidate set is the lessons the arm's key admits (node: a shared
+strong key with a seed or, for node_khop, a k-hop neighbour; text: any lesson matching a word);
+`_select` then ranks them by Renor's keyword score (bm25 of the OR of the request's content words,
+Porter-stemmed) against the issue text and named symbols, equal scores newest first, applies
+supersession (a later correction is listed first and the lesson it corrects is marked and listed
+right after it), and cuts the page to Renor's token budget. No embeddings anywhere.
+
 Fairness contract: every memory arm reads the same lesson pool (the shuffled arm the same pool
-with its keys permuted), returns at most the same k under the same character budget through
-the same `_select`, and renders with the same `render`. Only the key differs.
+with its keys permuted), returns at most the same k under the same token budget through the same
+`_select`, and renders with the same `render`. Only the candidate set differs.
 
 Python >= 3.8, standard library only: this file ships inside the submission's skill.
 """
 from __future__ import annotations
 
-import math
-import re
-from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from .keys import STRONG, WEIGHTS, has_strong, key_type, keys_for, mentioned_symbols
+from .renor import DEFAULT_TOKEN_BUDGET, KeywordIndex, budget_cut, count_tokens, mark_corrected, rank
 
 ARMS = ("none", "text", "node", "node_khop", "shuffled")
 MODE = {"none": "none", "text": "text", "node": "node", "node_khop": "node_khop", "shuffled": "node"}
@@ -30,15 +37,15 @@ MODE = {"none": "none", "text": "text", "node": "node", "node_khop": "node_khop"
 
 @dataclass(frozen=True)
 class RetrievalConfig:
-    k: int = 5                  # lessons returned per call
-    char_budget: int = 1600     # rendered-lesson characters per call
+    k: int = 5                  # lessons returned per call; Renor's keyword window is k * 10
+    token_budget: int = DEFAULT_TOKEN_BUDGET  # rendered-lesson tokens per call (get_context's 800)
     per_task_cap: int = 2       # at most this many lessons distilled from one source task
     n_seeds: int = 5            # symbols used as seeds per call
     hops: int = 2               # node_khop only: neighbourhood radius
     hop_decay: float = 0.6      # node_khop only: score multiplier per hop
     max_region: int = 60        # node_khop only: neighbourhood nodes considered per seed
-    bm25_k1: float = 1.2        # text only
-    bm25_b: float = 0.75        # text only
+    bm25_k1: float = 1.2        # Renor's keyword lane (FTS5 bm25 constants), every memory arm
+    bm25_b: float = 0.75        # Renor's keyword lane (FTS5 bm25 constants), every memory arm
 
 
 @dataclass(frozen=True)
@@ -46,11 +53,16 @@ class Retrieved:
     lesson: object
     score: float
     via: str  # "bm25" | "self" | "hop:<h>" -- logged by the offline replay, never shown
+    struct: float = 0.0         # node arms: the anchor-key score that admitted it (a tiebreak)
+    superseded_by: str = ""     # lesson_id of the later lesson that corrects this one
 
 
-def render_one(lesson):
-    return f"- [L:{lesson.lesson_id}] [{lesson.outcome}] {lesson.title}: {lesson.text} " \
+def render_one(lesson, superseded_by=""):
+    line = f"- [L:{lesson.lesson_id}] [{lesson.outcome}] {lesson.title}: {lesson.text} " \
            f"(seen at {lesson.anchor} in {lesson.repo})"
+    if superseded_by:
+        line += f" [superseded by L:{superseded_by}, listed above: prefer it]"
+    return line
 
 
 def render(retrieved):
@@ -59,40 +71,43 @@ def render(retrieved):
         return ""
     lines = ["Lessons from your own earlier runs on OTHER repositories "
              "(hints, not facts; check each one in this repo before relying on it):"]
-    lines += [render_one(r.lesson) for r in retrieved]
+    lines += [render_one(r.lesson, r.superseded_by) for r in retrieved]
     return "\n".join(lines)
 
 
 def _select(cands, cfg):
-    """Shared top-k under the per-source-task cap and the character budget. Deterministic."""
-    cands = sorted(cands, key=lambda r: (-r.score, r.lesson.lesson_id))
-    chosen, per_task, used = [], Counter(), 0
-    for r in cands:
-        if len(chosen) >= cfg.k:
-            break
-        if per_task[r.lesson.source_task] >= cfg.per_task_cap:
-            continue
-        cost = len(render_one(r.lesson)) + 1
-        if used + cost > cfg.char_budget:
-            continue
-        chosen.append(r)
-        per_task[r.lesson.source_task] += 1
-        used += cost
-    return chosen
+    """Shared by every memory arm: Renor's ordering, supersession and token budget. Deterministic.
+
+    1. rank by keyword score; equal scores newest first (`at`); then the anchor-key score; then id.
+    2. keep Renor's keyword window, k * 10.
+    3. supersession over that page (renor.mark_corrected).
+    4. the token-budgeted page: the longest run that fits cfg.token_budget, at most k lessons and
+       at most per_task_cap from one source task."""
+    ranked = rank(cands, score=lambda r: r.score, at=lambda r: r.lesson.at,
+                  tiebreak=lambda r: (-round(r.struct, 6), r.lesson.lesson_id))[: cfg.k * 10]
+    page, corrected_by = mark_corrected(
+        ranked, statement=lambda r: r.lesson.statement, at=lambda r: r.lesson.at,
+        source=lambda r: r.lesson.source_model, subject=lambda r: r.lesson.subject,
+        replaces=lambda r: r.lesson.replaces, ident=lambda r: r.lesson.lesson_id)
+    if corrected_by:
+        by = {ranked[old].lesson.lesson_id: ranked[new].lesson.lesson_id for old, new in corrected_by.items()}
+        page = [replace(r, superseded_by=by[r.lesson.lesson_id]) if r.lesson.lesson_id in by else r
+                for r in page]
+
+    def admit(r, kept):
+        return len(kept) < cfg.k and \
+            sum(1 for x in kept if x.lesson.source_task == r.lesson.source_task) < cfg.per_task_cap
+
+    return budget_cut(page, lambda r: count_tokens(render_one(r.lesson, r.superseded_by)) + 1,
+                      cfg.token_budget, admit)
 
 
-_TOKEN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*|\d+")
+def _keyword_index(store, cfg):
+    return KeywordIndex({l.lesson_id: l.statement for l in store}, k1=cfg.bm25_k1, b=cfg.bm25_b)
 
 
-def tokenize(text):
-    """Lowercase identifier-aware tokens; snake_case and CamelCase are also split."""
-    out = []
-    for tok in _TOKEN.findall(text or ""):
-        out.append(tok.lower())
-        parts = [p for p in re.split(r"_|(?<=[a-z0-9])(?=[A-Z])", tok) if p]
-        if len(parts) > 1:
-            out.extend(p.lower() for p in parts)
-    return out
+def _query(task_text, symbols):
+    return " ".join([task_text or ""] + list(symbols))
 
 
 class NoMemory:
@@ -106,37 +121,21 @@ class NoMemory:
 
 
 class TextMemory:
-    """ReasoningBank-style text-keyed memory: BM25 over each item's title + content. ReasoningBank
-    itself retrieves with an embedding model; the skill sandbox has none, so BM25 stands in, and
-    the paper says so."""
+    """Text-keyed memory, ReasoningBank-style (each item's title + content is its key), searched
+    with Renor's keyword lane: the OR of the request's content words, Porter-stemmed, bm25.
+    ReasoningBank itself retrieves with an embedding model; the sandbox has none and Renor's lane
+    needs none, and the paper says so."""
 
     arm = "text"
 
     def __init__(self, store, cfg=RetrievalConfig()):
         self.cfg = cfg
-        self.lessons = sorted(store, key=lambda l: l.lesson_id)
-        self.docs = [Counter(tokenize(l.title + " " + l.text)) for l in self.lessons]
-        self.lens = [sum(d.values()) for d in self.docs]
-        self.avgdl = (sum(self.lens) / len(self.lens)) if self.lens else 0.0
-        df = Counter()
-        for d in self.docs:
-            df.update(d.keys())
-        n = len(self.docs)
-        self.idf = {t: math.log(1 + (n - f + 0.5) / (f + 0.5)) for t, f in df.items()}
+        self.lessons = {l.lesson_id: l for l in store}
+        self.kw = _keyword_index(store, cfg)
 
     def recall(self, index=None, task_text="", symbols=()):
-        q = Counter(tokenize(" ".join([task_text or ""] + list(symbols))))
-        k1, b = self.cfg.bm25_k1, self.cfg.bm25_b
-        out = []
-        for lesson, doc, dl in zip(self.lessons, self.docs, self.lens):
-            s = 0.0
-            for term in q:
-                tf = doc.get(term, 0)
-                if tf:
-                    s += self.idf[term] * tf * (k1 + 1) / (tf + k1 * (1 - b + b * dl / (self.avgdl or 1)))
-            if s > 0:
-                out.append(Retrieved(lesson, s, "bm25"))
-        return _select(out, self.cfg)
+        scores = self.kw.scores(_query(task_text, symbols))
+        return _select([Retrieved(self.lessons[i], s, "bm25") for i, s in scores.items() if s > 0], self.cfg)
 
 
 class NodeMemory:
@@ -145,6 +144,7 @@ class NodeMemory:
     def __init__(self, store, cfg=RetrievalConfig(), hops=0, arm="node"):
         self.store, self.cfg, self.hops, self.arm = store, cfg, hops, arm
         self.idf = store.idf()
+        self.kw = _keyword_index(store, cfg)
 
     def seeds(self, index, task_text, symbols):
         out = []
@@ -184,7 +184,11 @@ class NodeMemory:
                 h = region[node]
                 self.score_keys(keys_for(index, node), self.cfg.hop_decay ** h,
                                 "self" if h == 0 else f"hop:{h}", best)
-        return _select(list(best.values()), self.cfg)
+        if not best:
+            return []
+        kw = self.kw.scores(_query(task_text, symbols), ids=list(best))
+        return _select([Retrieved(r.lesson, kw.get(lid, 0.0), r.via, struct=r.score)
+                        for lid, r in best.items()], self.cfg)
 
 
 def make_arm(arm, store, cfg=RetrievalConfig()):

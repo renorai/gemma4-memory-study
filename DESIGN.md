@@ -82,7 +82,7 @@ contrast.
 | --- | --- | --- |
 | `none` | 3 (headline) | no skill, no memory section |
 | `node` | 3 (headline) | skill; lessons eligible on a shared strong key with a seed symbol |
-| `text` | 1, exploratory | the same skill and pool; BM25 over title and text (ReasoningBank-style) |
+| `text` | 1, exploratory | the same skill and pool; every lesson a candidate: Renor's keyword lane alone over title and text (ReasoningBank-style keying) |
 | `node_khop` | 1, exploratory | as `node`, plus 2-hop neighbours, decay 0.6 per hop |
 | `shuffled` | 1, exploratory | as `node`, with key sets permuted across lessons: the control for "is it the anchoring?" |
 
@@ -90,7 +90,7 @@ contrast.
 successes and failures. ReasoningBank's abstract confirms distillation from self-judged
 successes and failures. The item format and embedding retrieval are from the paper body, which
 we have not verified, so the Writeup says "in the style of". The sandbox has no embedding model,
-so BM25 stands in, and the paper says so.
+so Renor's keyword lane (BM25 over Porter-stemmed words) stands in, and the paper says so.
 
 **Same instructions in every memory arm.** All memory arms ship byte-identical prompts and
 `scripts/`; a test checks this. Only `config.yaml` (the arm) and `lessons.txt` differ. The agent
@@ -101,7 +101,18 @@ therefore cannot behave differently because of the instructions. A gap between `
 
 `memory/schema.py:Lesson` has these fields: title (at most 80 characters), text (at most 400),
 outcome, keys, anchor, repo, source_task, source_model, source_run and lesson_id (a content
-hash).
+hash), plus the three Renor-style fields below.
+
+**Stored Renor-style** (`LessonStore.remember`, called by `pipeline/experiment.py:distil`): one
+statement per lesson (`title: text`), with
+- `subject`: what it is about, by default the anchor's leaf name (`Client.send` → `send`);
+- `at`: when it was written (UTC, ISO-8601);
+- `replaces`: the lesson_id of the earlier lesson it corrects. It is set when the new lesson reads
+  as a correction of an earlier one on the same subject (Renor's `inferReplaced`), and empty
+  otherwise.
+
+These three fields are not in the content hash, so an older lessons.txt loads unchanged and keeps
+its ids.
 
 **Distillation** (`pipeline/distill.py`, prompt `pipeline/distill_prompt.txt`):
 - **Input.** After each run-1 `none` attempt, the same model reads a compact view of its own
@@ -154,7 +165,32 @@ submission/                       (template; runner/build_submission.py writes o
 1. It builds a static index of the repo in the working directory (`memory/pyindex.py`: symbols,
    imports and a name-resolved call graph).
 2. It resolves the seeds as the harness does: exact, suffix, case-insensitive, substring.
-3. It derives the keys and selects the top k lessons under the budget.
+3. It derives the keys, and so the candidate lessons.
+4. It ranks and cuts them with Renor's memory design (next section).
+
+### 5.1 Retrieval: Renor's memory design applied to code-structure-anchored lessons
+
+The memory is Renor's: keyword-OR with stemming, supersession, and token-budgeted recall, applied
+to lessons anchored on code structure. `memory/renor.py` ports the rules from Renor's TypeScript
+engine to standard-library Python and cites each one by file:line (main 2fd556b). The tests
+replay Renor's own test cases (`tests/test_renor.py`). **No embeddings are used anywhere.**
+
+| Step | Rule | Renor source |
+| --- | --- | --- |
+| Candidates | node: a shared strong key with a seed; node_khop: with a seed or a neighbour within 2 hops; text: every lesson that matches a word | this design, section 1 |
+| Query | the content words of the issue text plus the named symbols, joined by OR. Stop words dropped; `_`/`-` kept inside a word, so a hyphenated or snake_case word is one phrase | `retrieval/keyword.ts:72-93`, `memory/factTerms.ts:39-50` |
+| Score | BM25 (FTS5 bm25(): k1 1.2, b 0.75, idf floored at 1e-6) over Porter-stemmed `porter unicode61` tokens of title + text; checked against SQLite FTS5 in the tests | `retrieval/keyword.ts:115,141-177` |
+| Order | best score first; scores within 1e-4 newest first; then the anchor-key score; then id | `mvp/agentMemory.ts:605-618` |
+| Window | the first k × 10 ranked lessons | `retrieval/keyword.ts:19` |
+| Supersession | a stored `replaces` link, or a newer lesson that reads as a correction of an older one on the same subject (cue words, shared-word thresholds, ties left unlinked). The correction is listed first; the superseded lesson is marked and listed right after it | `mvp/inferReplaces.ts:16-79`, `mcp/correctedHits.ts:41-72` |
+| Page | the longest run of that order that fits 800 tokens (an item bigger than the whole budget is passed over), at most k = 5 and at most 2 per source task | `mvp/agentMemory.ts:972-974`, `mvp/tools/getContext.ts:26` |
+
+Two things differ from Renor, and both are forced by the sandbox:
+- **Token counting.** Renor counts o200k tokens. The sandbox has no tokenizer, so
+  `count_tokens` is a conservative estimate (at least one token per 4 characters).
+- **The keyword index.** It is built in memory, in Python, not in SQLite.
+
+The anchor-key score Σ w · idf no longer ranks the lessons; it breaks the last ties.
 
 It makes no network call and no model call. A memory error prints "memory unavailable" and never
 breaks the episode.
@@ -268,6 +304,22 @@ dataset) and writes three push directories.
     memory arms still differ only in those two files, now at
     `skills/graph-memory/assets/config.yaml` and `.../assets/lessons.txt`.
   - Task snapshots ship as .tgz; `snapshot_for` now extracts them (Python sources only).
+- **2026-11-08T21:45Z, before any memory-arm result exists (owner decision of 8 Nov, option B).**
+  The memory arms' retrieval is now Renor's memory design, ported to Python (section 5.1).
+  The `none` arm and every shared file are unchanged; `tests/test_frozen_shared.py` checks this
+  against the frozen baseline commit. PREREG.md is unchanged; this entry records how the code
+  departs from it.
+  - Ranking: candidates are still chosen by strong anchor keys (node, node_khop, shuffled). They
+    are now ranked by Renor's keyword score against the issue text and the named symbols, newest
+    first on ties, with the anchor-key score as the last tiebreak. Before, they were ranked by the
+    anchor-key score alone.
+  - The text arm is Renor's keyword lane (keyword-OR, Porter stemming, FTS5 bm25) over title and
+    text. Before, it was our own BM25 tokenization. k1 and b are unchanged (1.2, 0.75).
+  - Supersession: lessons carry `subject`, `at` and `replaces`. A later correction is listed
+    before the lesson it supersedes, and that lesson is marked.
+  - Budget: char_budget = 1600 is replaced by token_budget = 800 (Renor's get_context default).
+    k = 5 and per_task_cap = 2 are unchanged.
+  - No embeddings are used, in any arm.
 - **TODO before the first arm run.** Record the scope that `choose_scope` picks from the
   throughput kernel's numbers: tasks, exploratory arms per model and concurrency.
 

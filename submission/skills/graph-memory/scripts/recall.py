@@ -33,7 +33,7 @@ if HERE not in sys.path:
 
 from memory import LessonStore, RepoIndex, RetrievalConfig, make_arm, render  # noqa: E402
 
-INT_FIELDS = {"k", "char_budget", "per_task_cap", "n_seeds", "hops", "max_region"}
+INT_FIELDS = {"k", "token_budget", "per_task_cap", "n_seeds", "hops", "max_region"}
 FLOAT_FIELDS = {"hop_decay", "bm25_k1", "bm25_b"}
 
 

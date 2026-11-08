@@ -73,7 +73,7 @@ def distil(attempts, generate, index_of, stats=None):
             stats.dropped["no_snapshot"] += 1
             continue
         for lesson in distill_attempt(a, generate, ix, stats=stats):
-            store.add(lesson)
+            store.remember(lesson)   # Renor-style write: subject, time, replaces-link (memory/store.py)
     return store
 
 

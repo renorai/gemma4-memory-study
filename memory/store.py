@@ -7,11 +7,13 @@ Python >= 3.8, standard library only: this file ships inside the submission's sk
 """
 from __future__ import annotations
 
+import datetime as _dt
 import math
 import random
 from collections import Counter, defaultdict
 from dataclasses import replace
 
+from .renor import infer_replaced
 from .schema import Lesson
 
 
@@ -30,6 +32,29 @@ class LessonStore:
         for k in lesson.keys:
             self._by_key[k].append(lesson.lesson_id)
         return True
+
+    def remember(self, lesson, at=None):
+        """Renor-style write: one statement with a subject, a time and, when it corrects an earlier
+        lesson, a `replaces` link (Renor's `remember`, with RENOR_INFER_REPLACES inference,
+        R:engine/src/mvp/inferReplaces.ts:49-79 via memory/renor.py).
+
+        - at: the lesson's own `at`, else `at`, else now (UTC, ISO-8601).
+        - subject: the lesson's own, else the leaf name of its anchor (`Client.send` -> `send`).
+        - replaces: the lesson's own, else the earlier lesson in this store it reads as correcting.
+        Returns the stored lesson (or the existing one for an exact duplicate)."""
+        if lesson.lesson_id in self._by_id:
+            return self._by_id[lesson.lesson_id]
+        when = lesson.at or at or _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+        subject = lesson.subject or lesson.anchor.rsplit(".", 1)[-1]
+        replaces = lesson.replaces
+        if not replaces:
+            cands = [{"id": l.lesson_id, "excerpt": l.statement, "source": l.source_model, "at": l.at,
+                      "subject": l.subject} for l in self if l.at and l.at < when]
+            found = infer_replaced(lesson.statement, lesson.source_model, cands, subject=subject.lower())
+            replaces = found["id"] if found else ""
+        stored = replace(lesson, at=when, subject=subject, replaces=replaces)
+        self.add(stored)
+        return stored
 
     def __len__(self):
         return len(self._by_id)
