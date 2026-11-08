@@ -1,115 +1,292 @@
-% arXiv-style skeleton. Mirrors ../WRITEUP.md; numbers come only from the notebook.
-% Build: latexmk -pdf main.tex   (not built in CI; no TeX toolchain is assumed)
+% arXiv version of ../WRITEUP.md. Same story, same tables, same numbers: every results cell comes
+% from notebook/gemma4_graph_memory.ipynb (tables.md). \TODO marks a missing number; "TBD" marks
+% an undecided choice (the recap headline). Build: latexmk -pdf main.tex
 \documentclass[11pt]{article}
 \usepackage[margin=1in]{geometry}
-\usepackage{amsmath,booktabs,hyperref,natbib,xcolor}
-\newcommand{\TODO}[1]{\textbf{\textcolor{red}{TODO: #1}}}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,booktabs,hyperref,natbib,xcolor,enumitem}
+\newcommand{\TODO}[1]{\textbf{\textcolor{red}{TODO#1}}}
+\newcommand{\TBD}{\textbf{\textcolor{orange}{TBD}}}
+\newcommand{\cell}{\TODO{}}
 
-\title{When Does Transferable Node-Anchored Memory Help Small Coding Agents?}
-\author{TODO authors}
+\title{Told Once: Offline Renor Memory for Small Gemma~4 Coding Agents}
+\author{Patrick Passos\\Renor}
 \date{}
 
 \begin{document}
 \maketitle
 
 \begin{abstract}
-Experience memory for coding agents rarely beats no memory: on VibeMemBench, 11 of 12 solver and
-memory-system pairings did not~\citep{fan2026vibemembench}. We ask \emph{when} memory helps small
-open models when the test repositories are private and unseen. Lessons that Gemma~4 writes after
-its own runs are anchored to call-graph nodes but keyed by \emph{transferable anchor keys}
-(external APIs called, leaf name, external decorators and bases, raised exceptions, fan-in/out
-shape) that recur across codebases, recomputed from source by a standard-library skill script
-inside a declarative agent. Leave-one-repo-out on the 129 development tasks of the Gemma~4
-Developer Agent harness, on Gemma~4 31B and 12B, we compare no memory with node-anchored memory
-(three runs each), and explore ReasoningBank-style text keys, a 2-hop neighbourhood and a
-shuffled-key control, under a plan preregistered before any run. \TODO{verdicts, differences,
-95\% CIs and flip rates per model}
+Small coding agents repeat themselves. Across tasks they rediscover what an earlier run already
+learned; within a task, once context compaction drops their early steps, they re-read files and
+re-try edits. Renor is a memory engine built on the promise that context told once should be
+available later, when it is relevant. We port its retrieval design (keyword-OR search with
+stemming, corrections that supersede what they correct, and recall cut to a token budget) to
+standard-library Python that runs offline inside a declarative Gemma~4 agent, with no embeddings
+and no model calls at recall time. On the public development tasks of the Gemma~4 Developer Agent
+harness~\citep{kaggle2026gemma4agent}, with Gemma~4 31B (4-bit QAT) on four L4 GPUs, we compare no
+memory with memory written by Gemma about its own attempts on \emph{other} repositories
+(leave-one-repo-out), against a shuffled-memory control. An in-task ``where was I'' recap after
+compaction is a candidate headline, decided from no-memory traces only (\TBD). Scope and analysis
+were committed before any memory-arm result. \TODO{: resolved rates, paired difference with 95\%
+CI, per-run McNemar, flip rate and context overflows, on the 48-task floor set and on all 129
+tasks if they complete.}
 \end{abstract}
 
 \section{Introduction}
-Reflexion~\citep{shinn2023reflexion}, ExpeL~\citep{zhao2023expel}, Agent Workflow
-Memory~\citep{wang2024awm}, ReasoningBank~\citep{ouyang2025reasoningbank} and
-SWE-Exp~\citep{chen2025sweexp} keep lessons from an agent's own trajectories and retrieve them by
-text or task similarity. Node identities learned on one repository do not exist in another; the
-properties of a node often do. \TODO{motivation paragraph; contributions list as in WRITEUP.md}
+A user who explains something to an assistant should not have to explain it again. Coding agents
+have this problem twice. \emph{Across tasks}, a lesson learned on one repository does not reach
+the next. \emph{Within a task}, the harness compacts the conversation at about 14k tokens, after
+which a small model can lose track of what it already read and tried.
+
+Experience memory targets the first problem. Reflexion~\citep{shinn2023reflexion},
+ExpeL~\citep{zhao2023expel}, Agent Workflow Memory~\citep{wang2024awm},
+ReasoningBank~\citep{ouyang2025reasoningbank} and SWE-Exp~\citep{chen2025sweexp} keep lessons
+from an agent's own trajectories and retrieve them later. For coding agents the evidence is
+sobering: on VibeMemBench~\citep{fan2026vibemembench}, 11 of 12 solver and memory-system pairings
+did not beat memory-off, while directly injected verified experience helped 4 of 5 solvers by 1.1
+to 4.5 percentage points. A null result is therefore the likely outcome here, and the study is
+built to report one honestly.
+
+\paragraph{What is different.}
+(1) The retrieval rules are a product's, Renor's, ported rule by rule with source citations and
+checked against Renor's own test cases. (2) Memory runs offline inside a declarative submission:
+static lessons and a script in the task sandbox, with no network and no embedding model.
+(3) The agent is a small open model, Gemma~4 31B in 4 bits on four 24\,GB GPUs. (4) The task sets,
+the headline rule and the analysis were committed, timestamped, before any memory-arm result.
+
+\paragraph{Contributions.}
+\begin{itemize}[nosep]
+  \item A port of Renor's memory design to a standard-library skill inside the Gemma~4 harness,
+        with a validator for the submission rules.
+  \item A controlled comparison of no memory, memory and shuffled memory for small Gemma~4
+        agents, with run-to-run noise reported beside every contrast.
+  \item A measured account of context compaction in a small agent, and of an in-task recap
+        (\TBD).
+  \item A notebook that regenerates every table from the raw result rows.
+\end{itemize}
 
 \section{Method}
+\subsection{Setting}
+Each task gives the agent an issue in one Python repository; the agent returns a patch that the
+harness's tests score as resolved or not. The coder agent has \texttt{run\_command},
+\texttt{read\_file}, \texttt{write\_file}, \texttt{edit\_file}, \texttt{get\_status} and
+\texttt{submit\_patch}, and a read-only explorer sub-agent holds the harness's three code-graph
+tools so their output stays out of the coder's context. Thinking is on (budget 4,096 tokens).
+Each task has at most 100 tool calls and 60 minutes. The event history is compacted above 14,336
+tokens; the context limit is 32,768.
+
 \subsection{Lessons}
-A lesson is $\ell = (\mathit{title}, t, o, K, a, r, \tau, m)$: title, text $t$ ($\le 400$
-characters), outcome $o \in \{\text{success}, \text{failure}\}$, key set $K$, anchor symbol $a$ in
-source repository $r$, source task $\tau$ and source model $m$. The model $m$ that made the attempt
-writes $t$ and picks $a$ among the symbols the attempt touched; $K = \mathrm{keys}(a)$ is computed
-from source.
+After each first-run no-memory attempt, the same Gemma model reads a compact view of its own
+trace, its own patch and the pass/fail outcome, and writes at most three lessons
+$\ell = (\mathit{title}, t, a, K, \sigma, \mathit{at}, \rho)$: a title ($\le 80$ characters), a
+text $t$ ($\le 400$), an anchor symbol $a$ the attempt touched, the key set $K = \mathrm{keys}(a)$
+computed from source (never from the model's text), a subject $\sigma$ (the anchor's leaf name),
+the time written, and an optional link $\rho$ to the lesson it corrects. The distiller never sees
+the gold patch, test output, or another model's trajectories; only the Gemma~4 model names may
+author a lesson.
 
-\subsection{Transferable keys and retrieval}
-For a symbol $s$, $\mathrm{keys}(s)$ holds typed keys (api, base, deco, exc, name, tok, motif,
-kind); the first five types are strong. With seeds $S$ and, for the $k$-hop arm, the static
-call-graph distance $d$, a lesson scores
-\begin{equation}
-  \mathrm{score}(\ell) = \max_{s \in S,\ v:\ d(s,v) \le H} \gamma^{d(s,v)}
-  \sum_{\kappa \in K \cap \mathrm{keys}(v)} w(\kappa)\,\mathrm{idf}(\kappa)
-  \quad\text{if } K \cap \mathrm{keys}(v) \text{ has a strong key},
-\end{equation}
-with $H = 0$ (node) or $H = 2$, $\gamma = 0.6$ (node$+k$-hop); weights and all other parameters
-are fixed in the preregistration. This score only decides the candidate set (and breaks the last
-ties).
+\subsection{Renor's memory design, offline}
+\begin{enumerate}[nosep]
+  \item \textbf{Candidates by code structure.} $\mathrm{keys}(s)$ holds properties of a symbol
+        that recur across repositories: external APIs called, leaf name, external decorators and
+        base classes, raised exceptions. A lesson is a candidate when $K$ shares one of these with
+        a seed symbol (named in the issue or passed by the agent).
+  \item \textbf{Keyword-OR with stemming.} The query is the OR of the issue's content words and
+        the named symbols, stop words removed, snake\_case and hyphenated words kept whole. Words
+        are Porter-stemmed; candidates are scored by BM25 ($k_1 = 1.2$, $b = 0.75$) over title and
+        text, matching SQLite FTS5's \texttt{bm25()} to nine decimal places in a test.
+  \item \textbf{Corrections supersede.} A newer lesson that reads as a correction of an older one
+        on the same subject is listed first; the corrected lesson is marked and follows it.
+  \item \textbf{Token-budgeted recall.} The page is the longest prefix that fits 800 tokens
+        (Renor's default), at most 5 lessons and at most 2 per source task, with a conservative
+        token estimate because the sandbox has no tokenizer.
+\end{enumerate}
+Equal scores go to the newer lesson. The agent calls the script at most three times per task; a
+memory error prints ``memory unavailable'' and never ends the episode.
 
-\subsection{Renor's memory design}
-Retrieval is Renor's memory design (keyword-OR with stemming, supersession, token-budgeted recall)
-applied to code-structure-anchored lessons, ported from Renor's TypeScript engine to
-standard-library Python with each rule cited by source file and line. No embeddings are used.
-Candidates are ranked by the BM25 score ($k_1 = 1.2$, $b = 0.75$) of the OR of the issue's content
-words, Porter-stemmed, with stop words dropped and hyphenated terms kept as phrases. This matches
-SQLite FTS5 with the \texttt{porter unicode61} tokenizer, and a test checks it against SQLite.
-Equal scores are ordered newest first. A later lesson that reads as a correction of an earlier
-one on the same subject supersedes it: the correction is listed first, and the superseded lesson
-is marked and listed right after it. Recall returns the longest run of that order that fits an
-800-token page, at most $k = 5$ lessons and at most two per source task. The text arm is the same
-pipeline with every lesson a candidate. The shuffled control permutes $K$ across lessons.
+\subsection{Arms}
+\begin{table}[h]
+\centering
+\begin{tabular}{ll}
+\toprule
+Arm & What changes \\
+\midrule
+no memory & no skill, no memory section in the prompt \\
+memory & the skill and lessons from the other repositories \\
+shuffled memory & same skill, prompt and lessons; key sets permuted across lessons (seed 20261107) \\
+recap (\TBD) & no-memory agent plus an in-task ``where was I'' note recalled after compaction \\
+\bottomrule
+\end{tabular}
+\end{table}
+Memory and shuffled memory ship byte-identical prompts and code, so their difference is which
+lesson reaches which code. The recap applies Renor's design inside one episode: the agent writes
+short progress notes (files read, hypotheses ruled out, edits made) and recalls them when it no
+longer sees its early steps. Whether it is a headline arm is decided by rule~3 below; its
+implementation is \TBD.
 
 \section{Experiments}
-\subsection{Protocol}
-\TODO{models (31B, 12B), LORO folds, 3 runs on none and node, exploratory arms, preregistered
-rule (task-level paired bootstrap, exact sign/McNemar test, Holm), flip rate, Hit@k}
+\subsection{Setup and measured budget}
+Gemma~4 31B (\texttt{gemma-4-31b-it-qat-w4a16-ct}) is served by vLLM with tensor parallelism 4 on
+4$\times$ NVIDIA L4, \texttt{swegemma eval --sandbox subprocess}. The 129 public development tasks
+come from fastapi, rich, requests and httpx; each repository is evaluated with lessons written
+only on the other three. A 16-task no-memory shard (8 Nov; not results) measured 21.3 tasks per
+hour at concurrency 8 and 16.6 at 16, a median of 15.9 agent minutes and 46 model calls per task,
+and 3 context overflows in 16 episodes. At 21.3 tasks per hour, 48 tasks $\times$ 2 arms $\times$
+3 runs (288 episodes) take 13.5 hours and the full 774 episodes take 36.3 hours; a 1-run extra arm
+takes 2.3 (48 tasks) or 6.1 hours (129).
+
+\subsection{Committed before any memory-arm result}
+Committed at 2026-11-08T22:06Z, before any memory-arm result:
+\begin{enumerate}[nosep]
+  \item a 48-task subset (seed 20261107) runs regardless and is the floor;
+  \item 129 tasks $\times$ 2 arms $\times$ 3 runs is the headline only if it completes by
+        11 Nov 12:00 UTC; otherwise the 48-task set is, and partial 129-task results are
+        exploratory;
+  \item the recap headline switch is decided from no-memory traces only (compaction frequency
+        and repeated actions after compaction);
+  \item the primary measure is the resolved rate as a per-task mean over runs, with a paired
+        bootstrap 95\% CI over tasks and McNemar on per-run pairs; a CI that crosses zero is a
+        pilot effect size with no significance claim; context overflow and the flip rate are
+        reported per arm.
+\end{enumerate}
+The frozen preregistration (7 Nov) still applies, with its verdict words SUPPORTED, CONTRADICTED
+and NOT SUPPORTED.
 
 \subsection{Results}
 \begin{table}[h]
-\centering
-\caption{Resolved share, development tasks, leave-one-repo-out, harness tests, mean over 3 runs.}
-\begin{tabular}{lccc}
+\centering\small
+\caption{Resolved rate, mean over runs per task, harness tests, Gemma~4 31B, leave-one-repo-out.}
+\begin{tabular}{lccccccc}
 \toprule
-Model & none & node & $\Delta$ [95\% CI] \\
+Task set & tasks & runs & no memory & memory & $\Delta$ [95\% CI] & McNemar per run & reading \\
 \midrule
-gemma-4-31b-it-qat-w4a16-ct & \TODO{} & \TODO{} & \TODO{} \\
-gemma-4-12b-it-qat-w4a16-ct & \TODO{} & \TODO{} & \TODO{} \\
+48-task floor & \cell & \cell & \cell & \cell & \cell & \cell & \cell \\
+129 tasks & \cell & \cell & \cell & \cell & \cell & \cell & \cell \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\TODO{Tables: flip rates; exploratory contrasts; moderators; process and cost; hidden test}
+\begin{table}[h]
+\centering\small
+\caption{Controls and the recap arm; 1 run unless rule~3 promotes the recap.}
+\begin{tabular}{lcccc}
+\toprule
+Task set & memory $-$ shuffled & shuffled $-$ no memory & recap $-$ no memory & recap status \\
+\midrule
+48-task floor & \cell & \cell & \cell & \cell \\
+129 tasks & \cell & \cell & \cell & \cell \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\centering\small
+\caption{Context measures per arm, 48-task floor set, all runs. A repeated action is a tool call
+after a compaction whose tool and arguments match an earlier call in the same episode.}
+\begin{tabular}{lcccc}
+\toprule
+Arm & compacted $\ge 1\times$ & compactions / episode & repeated after compaction & overflows \\
+\midrule
+no memory & \cell & \cell & \cell & \cell \\
+memory & \cell & \cell & \cell & \cell \\
+shuffled memory & \cell & \cell & \cell & \cell \\
+recap & \cell & \cell & \cell & \cell \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\centering\small
+\caption{Run-to-run flip rate between identical runs.}
+\begin{tabular}{lccc}
+\toprule
+Arm / task set & runs & pairwise flip rate & tasks not identical in all runs \\
+\midrule
+no memory / 48 & \cell & \cell & \cell \\
+memory / 48 & \cell & \cell & \cell \\
+no memory / 129 & \cell & \cell & \cell \\
+memory / 129 & \cell & \cell & \cell \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\centering\small
+\caption{Memory $-$ no memory by evaluated repository (fold).}
+\begin{tabular}{lcccc}
+\toprule
+Fold & tasks & no memory & memory & $\Delta$ \\
+\midrule
+fastapi & \cell & \cell & \cell & \cell \\
+rich & \cell & \cell & \cell & \cell \\
+requests & \cell & \cell & \cell & \cell \\
+httpx & \cell & \cell & \cell & \cell \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\centering\small
+\caption{Process and cost per arm, 48-task floor set. Compute was free; tokens and minutes are
+the cost.}
+\begin{tabular}{lcccccc}
+\toprule
+Arm & tool calls & model calls & tokens / resolved & agent min & recalls & lessons shown \\
+\midrule
+no memory & \cell & \cell & \cell & \cell & \cell & \cell \\
+memory & \cell & \cell & \cell & \cell & \cell & \cell \\
+shuffled memory & \cell & \cell & \cell & \cell & \cell & \cell \\
+recap & \cell & \cell & \cell & \cell & \cell & \cell \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \subsection{Threats to validity}
-\TODO{as in WRITEUP.md section 3.6}
+\begin{itemize}[nosep]
+  \item \textbf{One repository family per fold.} Fold effects are confounded with repository
+        effects; four folds cannot separate them.
+  \item \textbf{httpx has one task}, so in effect there are three informative folds.
+  \item \textbf{Sandbox.} We run the subprocess sandbox; the official scorer uses Docker. Levels
+        may differ in either direction; both arms share the sandbox.
+  \item \textbf{Two versus three runs.} If a third run does not finish, per-task means take
+        values in $\{0, \tfrac12, 1\}$; every table prints its run count.
+  \item \textbf{No embeddings.} Only Renor's keyword lane is tested; a null result says nothing
+        about embedding retrieval.
+  \item \textbf{Protocol confound.} No memory has a shorter prompt and no recall calls; shuffled
+        memory runs the identical protocol.
+  \item \textbf{Power and contamination.} With 48 tasks only a large effect excludes zero. The
+        repositories are public and likely in pretraining data, for every arm alike.
+  \item \textbf{Throughput sample.} The budget comes from one 16-task shard.
+\end{itemize}
 
 \section{Related work}
-Code graphs are used to retrieve code by RepoGraph~\citep{ouyang2024repograph},
-CodexGraph~\citep{liu2024codexgraph}, LocAgent~\citep{chen2025locagent} and
-\citet{bhola2026codeisntmemory}; coding agents follow SWE-agent~\citep{yang2024sweagent}.
-EA-Graph~\citep{hsu2026eagraph} anchors verification claims to artifacts and is the closest prior
-work; \citet{wang2025repomemory} mine commit history for memory, and SWE-Exp~\citep{chen2025sweexp}
-keeps an experience bank of repair attempts. General memory systems include
-MemGPT~\citep{packer2023memgpt}, Mem0~\citep{chhikara2025mem0}, Zep~\citep{rasmussen2025zep} and
-Hindsight~\citep{latimer2025hindsight}, evaluated on benchmarks such as
-LongMemEval~\citep{wu2024longmemeval}; VibeMemBench~\citep{fan2026vibemembench} finds most memory
-systems do not beat no memory for coding agents. ExpHarness~\citep{feng2026expharness} learns a
-graph of experiences, not of code; SWE-MeM~\citep{gao2026swemem} learns in-episode memory with RL;
-subtask-level memory~\citep{shen2026subtask} and Agent KB~\citep{tang2025agentkb} target SWE agents.
-CGM~\citep{tao2025cgm} trains the code graph into the model and Prometheus~\citep{pan2025prometheus}
-builds one within the task. SWE-Gym~\citep{pan2024swegym}, SWE-smith~\citep{yang2025swesmith} and
-DeepSWE~\citep{luo2025deepswe} train small SWE agents.
+\paragraph{Experience memory.} Reflexion~\citep{shinn2023reflexion}, ExpeL~\citep{zhao2023expel},
+Agent Workflow Memory~\citep{wang2024awm}, ReasoningBank~\citep{ouyang2025reasoningbank} and
+Dynamic Cheatsheet~\citep{suzgun2025dynamiccheatsheet} keep lessons, workflows or strategies from
+an agent's own experience.
+\paragraph{Memory for software agents.} SWE-Exp~\citep{chen2025sweexp}, subtask-level
+memory~\citep{shen2026subtask}, Agent KB~\citep{tang2025agentkb}, Repository
+Memory~\citep{wang2025repomemory} and EA-Graph~\citep{hsu2026eagraph} add memory to coding agents.
+SWE-MeM~\citep{gao2026swemem} learns in-episode memory management with reinforcement learning and is
+the closest relative of our recap arm, which needs no training. VibeMemBench~\citep{fan2026vibemembench}
+finds that most memory systems do not beat memory-off for coding agents; we start from that.
+\paragraph{General memory systems.} MemGPT~\citep{packer2023memgpt} manages the context window
+like virtual memory; Mem0~\citep{chhikara2025mem0}, Zep~\citep{rasmussen2025zep} and
+Hindsight~\citep{latimer2025hindsight} store conversational memory, benchmarked by
+LongMemEval~\citep{wu2024longmemeval}.
+\paragraph{Code structure and agents.} RepoGraph~\citep{ouyang2024repograph},
+CodexGraph~\citep{liu2024codexgraph} and LocAgent~\citep{chen2025locagent} retrieve code through
+repository graphs; SWE-agent~\citep{yang2024sweagent} and Agentless~\citep{xia2024agentless} are
+agent baselines on the SWE-bench~\citep{jimenez2023swebench} task family.
 
 \section{Conclusion}
-\TODO{verdict in the preregistered words, cost, main limitation}
+\TODO{: the headline reading in the committed words; memory against shuffled memory; what
+compaction did and the recap result; cost in tokens and minutes; the main limitation.}
+
+\paragraph{Reproducibility.} Notebook and kernels: \TODO{: Kaggle URLs}. Code (Apache~2.0):
+\TODO{: public repository URL}. Pre-commitment: \texttt{DESIGN-CHANGELOG-addendum.md} at commit
+\TODO{: hash}. Preregistration: \texttt{PREREG.md}, sha256 \texttt{4ca0e1e2\ldots6cf405}.
 
 \bibliographystyle{plainnat}
 \bibliography{refs}
