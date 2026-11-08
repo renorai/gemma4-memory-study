@@ -30,7 +30,10 @@ the httpbin fixture, ...). After the harness's own setup, post_setup() then:
      that have no competition wheel;
   2. removes from site-packages any top-level package the task's own workspace provides (and its
      dist-info), so tests import the repo under test, never an installed wheel of it;
-  3. for rich, replaces Pygments by the newest release published on or before the snapshot's HEAD
+  3. for every package the competition ships in several versions (starlette, pydantic, sqlmodel,
+     ...), installs the newest competition wheel the snapshot's own pyproject.toml constraints
+     allow (PEP 621 and Poetry; markers evaluated for Python 3.13), not the newest overall;
+  4. for rich, replaces Pygments by the newest release published on or before the snapshot's HEAD
      commit date (rich's styling tests encode the Pygments of their day).
 
 build_env() makes these inputs once, with internet on (kernels/envcheck). load_env() unpacks
@@ -78,6 +81,128 @@ def _remove_dist(sp, dist_info):
             if rel and str(f).startswith(str(sp.resolve())) and f.is_file():
                 f.unlink(missing_ok=True)
     shutil.rmtree(dist_info, ignore_errors=True)
+
+
+_PIP_SKIP = {"pytest", "pytest_timeout", "pytest_asyncio", "pytest_httpbin", "pytest_xdist", "pluggy",
+             "pip", "setuptools", "wheel"}          # never injected from the competition wheels
+
+
+def _poetry_spec(spec):
+    """Poetry constraint -> PEP 440 specifier string ('^1.2' -> '>=1.2,<2', '~1.2' -> '>=1.2,<1.3')."""
+    import re
+    if isinstance(spec, dict):
+        spec = spec.get("version", "*")
+    out = []
+    for part in str(spec).split(","):
+        s = part.strip()
+        if s in ("", "*"):
+            continue
+        m = re.fullmatch(r"([\^~])\s*(\d+)(?:\.(\d+))?(?:\.(\d+))?", s)
+        if m:
+            op, nums = m.group(1), [int(x) for x in m.groups()[1:] if x is not None]
+            if op == "^":
+                i = next((k for k, n in enumerate(nums) if n != 0), len(nums) - 1)
+            else:
+                i = 0 if len(nums) == 1 else 1
+            upper = nums[:i + 1]
+            upper[-1] += 1
+            out += [">=" + ".".join(map(str, nums)), "<" + ".".join(map(str, upper))]
+        else:
+            out.append(s if re.match(r"[<>=!~]", s) else "==" + s)
+    return ",".join(out)
+
+
+def snapshot_constraints(ws):
+    """{normalized name: SpecifierSet} from the snapshot's pyproject.toml (dependencies,
+    optional-dependencies, Poetry dependencies and groups), markers evaluated for Python 3.13."""
+    import tomllib
+    from packaging.requirements import Requirement
+    from packaging.specifiers import SpecifierSet
+    try:
+        data = tomllib.loads((Path(ws) / "pyproject.toml").read_text())
+    except Exception:
+        return {}
+    reqs = list(data.get("project", {}).get("dependencies", []))
+    for deps in data.get("project", {}).get("optional-dependencies", {}).values():
+        reqs += deps
+    for group in data.get("dependency-groups", {}).values():
+        reqs += [r for r in group if isinstance(r, str)]
+    poetry = data.get("tool", {}).get("poetry", {})
+    pdeps = dict(poetry.get("dependencies", {}))
+    for g in poetry.get("group", {}).values():
+        pdeps.update(g.get("dependencies", {}))
+    pdeps.update(poetry.get("dev-dependencies", {}))
+    for n, s in pdeps.items():
+        if n.lower() != "python":
+            spec = _poetry_spec(s)
+            reqs.append(f"{n}{spec}" if spec else n)
+    env = {"python_version": "3.13", "python_full_version": "3.13.0", "extra": "",
+           "sys_platform": "linux", "platform_system": "Linux", "implementation_name": "cpython",
+           "platform_python_implementation": "CPython", "os_name": "posix"}
+    out = {}
+    for raw in reqs:
+        try:
+            r = Requirement(raw)
+        except Exception:
+            continue
+        if r.marker is not None:
+            try:
+                if not r.marker.evaluate(env):
+                    continue
+            except Exception:
+                continue
+        k = _norm(r.name)
+        out[k] = (out[k] & r.specifier) if k in out else SpecifierSet(str(r.specifier))
+    return out
+
+
+def _wheel_top_levels(whl):
+    import zipfile
+    with zipfile.ZipFile(whl) as z:
+        return sorted({n.split("/", 1)[0] for n in z.namelist()
+                       if not n.split("/", 1)[0].endswith((".dist-info", ".data"))})
+
+
+def select_snapshot_versions(sp, ws, comp_wheels):
+    """Swap competition-injected packages for the newest competition wheel the snapshot allows.
+    Returns {name: (from_version, to_version)} for the swaps made."""
+    import zipfile
+    from packaging.version import InvalidVersion, Version
+    from swegemma.harness.container_setup import _is_wheel_compatible_py313
+    by = {}
+    for w in Path(comp_wheels).glob("*.whl"):
+        if not _is_wheel_compatible_py313(w.name):
+            continue
+        name, ver = w.name.split("-")[:2]
+        try:
+            by.setdefault(_norm(name), []).append((Version(ver), w))
+        except InvalidVersion:
+            continue
+    cons = snapshot_constraints(ws)
+    swaps = {}
+    for name, opts in sorted(by.items()):
+        if len({v for v, _ in opts}) < 2 or name in _PIP_SKIP or name not in cons:
+            continue
+        newest = max(opts, key=lambda o: o[0])
+        allowed = [o for o in opts if cons[name].contains(o[0], prereleases=True)]
+        if not allowed:
+            continue
+        pick = max(allowed, key=lambda o: o[0])
+        if pick[0] == newest[0]:
+            continue
+        for top in _wheel_top_levels(newest[1]):          # remove what the newest wheel installed
+            target = sp / top
+            if target.is_dir():
+                shutil.rmtree(target, ignore_errors=True)
+            elif target.exists():
+                target.unlink()
+        for di in sp.glob("*.dist-info"):
+            if _norm(di.name[:-len(".dist-info")].rsplit("-", 1)[0]) == name:
+                shutil.rmtree(di, ignore_errors=True)
+        with zipfile.ZipFile(pick[1]) as z:
+            z.extractall(sp, members=[m for m in z.namelist() if not m.endswith("/RECORD")])
+        swaps[name] = (str(newest[0]), str(pick[0]))
+    return swaps
 
 
 def _workspace_packages(ws):
@@ -169,6 +294,10 @@ class DockerSandbox(SubprocessManager):
             for di in sp.glob("*.dist-info"):
                 if _norm(di.name[:-len(".dist-info")].rsplit("-", 1)[0]) == _norm(name):
                     _remove_dist(sp, di)
+        comp_wheels = os.environ.get("SWEGEMMA_COMP_WHEELS")
+        if comp_wheels and not (sp / ".renor_versions").exists():
+            swaps = select_snapshot_versions(sp, ws, comp_wheels)
+            (sp / ".renor_versions").write_text(json.dumps(swaps, sort_keys=True) + "\n")
         pyg_root = Path(os.environ.get("SWEGEMMA_OVERLAY_DIR", "/nonexistent")) / "_pygments"
         if key in PYGMENTS_PIN_REPOS and pyg_root.is_dir() and not (sp / ".renor_pygments").exists():
             when = subprocess.run(["git", "-C", str(ws), "log", "-1", "--format=%cI"],
@@ -306,7 +435,7 @@ def build_overlays(dest, comp, py, env):
     return manifest
 
 
-def load_env(src=None, root=ENV_ROOT):
+def load_env(src=None, root=ENV_ROOT, comp=None):
     """Unpack the build_env() output (found under /kaggle/input, or `src`) and point
     SWEGEMMA_PY313 / SWEGEMMA_IMAGE_SP at it. Idempotent."""
     if src is None:
@@ -326,6 +455,8 @@ def load_env(src=None, root=ENV_ROOT):
     os.environ["SWEGEMMA_PY313"] = str(root / manifest["python_rel"])
     os.environ["SWEGEMMA_IMAGE_SP"] = str(root / "image_sp")
     os.environ["SWEGEMMA_OVERLAY_DIR"] = str(root / "overlays")
+    if comp is not None:                       # per-snapshot version selection (post_setup step 3)
+        os.environ["SWEGEMMA_COMP_WHEELS"] = str(Path(comp) / "wheels")
     return manifest
 
 

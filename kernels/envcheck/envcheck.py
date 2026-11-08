@@ -108,7 +108,7 @@ def main():
     scorer_sandbox.patch_harness()            # post_setup after every install_test_dependencies
     (WORK / "envcheck").mkdir(parents=True, exist_ok=True)
     scorer_sandbox.build_env(WORK / "scorer_env", comp)
-    env = scorer_sandbox.load_env(WORK / "scorer_env")
+    env = scorer_sandbox.load_env(WORK / "scorer_env", comp=comp)
     digest = code_sha256(code)
     log("code sha256:", digest, "| scorer env:", env["python"], env["image_dists"])
 

@@ -451,6 +451,14 @@ dataset) and writes three push directories.
   - the `headline` phase runs `CONFIG["headline_arm"]` (default `recap`).
 
   The `none` arm's build is unchanged.
+- **2026-11-08T23:20Z, per-snapshot versions (owner-approved), shared code, before any arm run.** For every
+  package the competition ships in several versions (starlette, pydantic, sqlmodel, ...),
+  `kernels/scorer_sandbox.py:select_snapshot_versions` installs the newest competition wheel the
+  snapshot's own pyproject.toml allows, not the newest overall. It reads PEP 621 dependencies,
+  optional dependencies, dependency groups, and Poetry dependencies and groups, with markers
+  evaluated for Python 3.13. This targets the 44 fastapi gold failures caused by starlette 1.6.0.
+  The frozen-shared baseline moves to the commit that adds it, and all 129 tasks are re-validated
+  on the CPU kernel.
 
 ## 11. Stretch: rejection-sampling LoRA (exploratory, after the headline runs)
 

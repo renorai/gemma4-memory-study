@@ -224,7 +224,7 @@ def setup(alias):
     install_wheelhouse()
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import scorer_sandbox
-    env = scorer_sandbox.load_env()
+    env = scorer_sandbox.load_env(comp=comp)
     digest = code_sha256(code)
     (WORK / "code_sha256.txt").write_text(digest + "\n")
     (WORK / "scorer_env.json").write_text(json.dumps(env, indent=2))
