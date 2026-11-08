@@ -306,8 +306,9 @@ dataset) and writes three push directories.
   - Task snapshots ship as .tgz; `snapshot_for` now extracts them (Python sources only).
 - **2026-11-08T21:45Z, before any memory-arm result exists (owner decision of 8 Nov, option B).**
   The memory arms' retrieval is now Renor's memory design, ported to Python (section 5.1).
-  The `none` arm and every shared file are unchanged; `tests/test_frozen_shared.py` checks this
-  against the frozen baseline commit. PREREG.md is unchanged; this entry records how the code
+  The `none` arm and every shared file are unchanged since 95e9256, the last commit that
+  changed shared code; `tests/test_frozen_shared.py` checks this against that commit. Every
+  `none` baseline run must use 95e9256 or later: no `none` run had been reported before it. PREREG.md is unchanged; this entry records how the code
   departs from it.
   - Ranking: candidates are still chosen by strong anchor keys (node, node_khop, shuffled). They
     are now ranked by Renor's keyword score against the issue text and the named symbols, newest

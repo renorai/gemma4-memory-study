@@ -3,7 +3,8 @@ differs from the frozen baseline commit.
 
 Memory-arm work (memory/, submission/skills/graph_memory/, the lesson store format, the
 memory-only prompt part runner/prompt_parts/memory.md) may change; nothing below may. The
-baseline commit is the branch head when the Renor-in-Python port started (8 Nov 2026); set
+baseline commit is 95e9256 (8 Nov 2026), the last commit that changed shared code (the
+memory-protocol fix for the real harness); no `none` run had been reported before it; set
 FROZEN_BASELINE_COMMIT to compare against another one. Skipped, never passed, when git or that
 commit is not available (a shallow clone, a Kaggle dataset copy).
 """
@@ -14,7 +15,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-BASELINE = os.environ.get("FROZEN_BASELINE_COMMIT", "9dee6df47434dffd62bedbd091c8235817009e56")
+BASELINE = os.environ.get("FROZEN_BASELINE_COMMIT", "95e92564b2edb326abadffcba26c3120ddf7bd7f")
 
 # Shared by both arms: runner, harness adapter, kernels/common.py, eval_runner.py, the prompts and
 # agent config both arms ship, the budget (eval_config.yaml, runner/budget.py), the scoring
