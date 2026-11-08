@@ -11,7 +11,8 @@ from .retrieval import (ARMS, MODE, NodeMemory, NoMemory, RetrievalConfig, Retri
 from .schema import MODEL_ALIASES, Lesson, LessonError
 from .store import LessonStore
 
-SHIPPED = ("__init__.py", "keys.py", "pyindex.py", "renor.py", "retrieval.py", "schema.py", "store.py")
+SHIPPED = ("__init__.py", "keys.py", "pyindex.py", "renor.py", "retrieval.py", "schema.py", "store.py",
+           "workmem.py", "recap_donors.py")
 
 __all__ = ["ARMS", "MODE", "MODEL_ALIASES", "STRONG", "SHIPPED", "WEIGHTS", "Lesson", "LessonError",
            "LessonStore", "NoMemory", "NodeMemory", "RepoIndex", "RetrievalConfig", "Retrieved",

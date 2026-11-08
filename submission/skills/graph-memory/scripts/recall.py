@@ -33,7 +33,10 @@ if HERE not in sys.path:
 
 from memory import LessonStore, RepoIndex, RetrievalConfig, make_arm, render  # noqa: E402
 
-INT_FIELDS = {"k", "token_budget", "per_task_cap", "n_seeds", "hops", "max_region"}
+INT_FIELDS = {"k", "token_budget", "per_task_cap", "n_seeds", "hops", "max_region", "recap_budget", "recap_every"}
+RECAP_ARMS = ("recap", "recap_shuffled")
+NOTES_ON = ("working notes: on. This run has no lessons; do not call recall.py again. "
+            "Follow 'Working notes' in your instructions: scripts/memory/workmem.py note / recap.")
 FLOAT_FIELDS = {"hop_decay", "bm25_k1", "bm25_b"}
 
 
@@ -104,6 +107,9 @@ def main(argv=None):
         with open(a.task_file, encoding="utf-8", errors="replace") as f:
             text = (text + "\n" + f.read())[:20000]
     try:
+        if read_config(data_file(SKILL, "config.yaml")).get("arm") in RECAP_ARMS:
+            print(NOTES_ON)
+            return 0
         got = recall(text, split_symbols(a.symbol)[:5], repo)
     except Exception as e:  # never break the agent's episode over memory
         print(f"memory unavailable ({type(e).__name__})")

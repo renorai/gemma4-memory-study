@@ -30,3 +30,17 @@ check each one against this repository before acting on it.
 Files: `scripts/recall.py` (entry point), `scripts/memory/` (retrieval code),
 `assets/config.yaml` (which retrieval this submission uses), `assets/lessons.txt` (the lessons,
 one JSON object per line).
+
+## Working notes (recap arms only)
+
+In a recap run, `recall.py` prints `working notes: on` and the agent keeps in-task notes with
+`scripts/memory/workmem.py`:
+
+    args: ["note", "--kind", "failed", "--about", "Client.send", "one sentence"]
+    args: ["recap", "--focus", "Client.send"]
+
+Kinds: hypothesis, edit, failed, tried, decision, next. `recap` prints a "where was I" page of at
+most 600 tokens: the goal (from /tmp/task.md), the current hypothesis, the next step, files
+edited and failed attempts, ranked by relevance to the focus. A later note on the same subject
+supersedes the earlier one. Notes live in /tmp/renor-notes/notes.jsonl; the script refuses any
+folder outside /tmp. In any other arm it prints `working notes are off in this run`.

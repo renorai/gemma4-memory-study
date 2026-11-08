@@ -163,7 +163,7 @@ class ArmTests(Fixture):
         self.assertEqual(a, b)
         with self.assertRaises(ValueError):
             make_arm("graph", self.store)
-        self.assertEqual(ARMS, ("none", "text", "node", "node_khop", "shuffled"))
+        self.assertEqual(ARMS, ("none", "text", "node", "node_khop", "shuffled", "recap", "recap_shuffled"))
         self.assertIsInstance(make_arm("shuffled", self.store), NodeMemory)
         self.assertIsInstance(make_arm("text", self.store), TextMemory)
 

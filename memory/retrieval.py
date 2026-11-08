@@ -31,8 +31,11 @@ from dataclasses import dataclass, replace
 from .keys import STRONG, WEIGHTS, has_strong, key_type, keys_for, mentioned_symbols
 from .renor import DEFAULT_TOKEN_BUDGET, KeywordIndex, budget_cut, count_tokens, mark_corrected, rank
 
-ARMS = ("none", "text", "node", "node_khop", "shuffled")
-MODE = {"none": "none", "text": "text", "node": "node", "node_khop": "node_khop", "shuffled": "node"}
+# recap, recap_shuffled: no lessons (mode none); the in-task working notes of memory/workmem.py,
+# own notes or another task's notes (the control).
+ARMS = ("none", "text", "node", "node_khop", "shuffled", "recap", "recap_shuffled")
+MODE = {"none": "none", "text": "text", "node": "node", "node_khop": "node_khop", "shuffled": "node",
+        "recap": "none", "recap_shuffled": "none"}
 
 
 @dataclass(frozen=True)
@@ -46,6 +49,8 @@ class RetrievalConfig:
     max_region: int = 60        # node_khop only: neighbourhood nodes considered per seed
     bm25_k1: float = 1.2        # Renor's keyword lane (FTS5 bm25 constants), every memory arm
     bm25_b: float = 0.75        # Renor's keyword lane (FTS5 bm25 constants), every memory arm
+    recap_budget: int = 600     # recap arms only: tokens per "where was I" page (memory/workmem.py)
+    recap_every: int = 6        # recap arms only: every n-th note also prints the recap (0: never)
 
 
 @dataclass(frozen=True)
