@@ -45,7 +45,7 @@ def configure(user, model_source, wheels, out):
     (code / "dataset-metadata.json").write_text(json.dumps(
         {"title": "renor gemma4 memory code", "id": f"{user}/renor-gemma4-code",
          "licenses": [{"name": "apache-2.0"}]}, indent=2))
-    for k in ("envcheck", "throughput", "arm_run"):
+    for k in ("envcheck", "replaycheck", "throughput", "arm_run"):
         d = out / k
         d.mkdir(parents=True)
         meta = json.loads((ROOT / "kernels" / k / "kernel-metadata.json").read_text())
