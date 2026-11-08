@@ -492,7 +492,7 @@ dataset) and writes three push directories.
   named uv's `cpython-3.13-...` symlink, whose absolute target exists only in the session that
   built it. In any later session every task would have failed with "No such file". `load_env`
   now resolves the real interpreter directory, and `build_env` records it. The frozen-shared
-  baseline moves to the fix.
+  baseline moves to the fix, 1914676.
 
 ## 11. Stretch: rejection-sampling LoRA (exploratory, after the headline runs)
 

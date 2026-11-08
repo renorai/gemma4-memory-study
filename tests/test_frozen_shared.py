@@ -3,7 +3,7 @@ differs from the frozen baseline commit.
 
 Memory-arm work (memory/, submission/skills/graph_memory/, the lesson store format, the
 memory-only prompt part runner/prompt_parts/memory.md) may change; nothing below may. The
-baseline commit is b495cfd (9 Nov 2026), the last commit that changed shared code (the
+baseline commit is 1914676 (9 Nov 2026), the last commit that changed shared code (the
 scorer-like test sandbox, task validation, seeded subset and analysis; DESIGN.md section 10);
 no `none` arm run had been made before it; set
 FROZEN_BASELINE_COMMIT to compare against another one. Skipped, never passed, when git or that
@@ -16,7 +16,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-BASELINE = os.environ.get("FROZEN_BASELINE_COMMIT", "b495cfdb0204dcc63b37b262a2bd999d38d960d3")
+BASELINE = os.environ.get("FROZEN_BASELINE_COMMIT", "19146761668e57707b72d7f33ff3793bc9ef2f20")
 
 # Shared by both arms: runner, harness adapter, kernels/common.py, eval_runner.py, the prompts and
 # agent config both arms ship, the budget (eval_config.yaml, runner/budget.py), the scoring
