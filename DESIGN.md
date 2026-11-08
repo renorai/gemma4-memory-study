@@ -483,6 +483,11 @@ dataset) and writes three push directories.
 - **2026-11-08T23:25Z, frozen-shared baseline moves to b04923a.** That commit includes the per-snapshot versions,
   the repeat-rate statistics, the provenance per row and the replay check. No `none` arm run had
   been made before it. The no-memory baseline and every later arm run use this code.
+- **2026-11-08T23:27Z, two runners, one subset.** The 48 validated tasks are split deterministically in seed
+  order (`runner/budget.py:split_every_third`). Every third task (16) runs on the Modal shard
+  runner and the other 32 on Kaggle (`arm_run` `CONFIG["part"]`). Both use the same code commit,
+  code hash, environment manifest and arm settings. Every row records `code_sha256` and
+  `env_sha256`, so the two parts can be checked against each other.
 
 ## 11. Stretch: rejection-sampling LoRA (exploratory, after the headline runs)
 

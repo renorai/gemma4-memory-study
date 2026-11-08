@@ -9,6 +9,7 @@ Edit CONFIG (or set ARM_RUN_CONFIG to a JSON string) before `kaggle kernels push
     exploratory arms for the "explore" phase ([] when the scope cut them)
     concurrency from the throughput kernel
     resume_from a /kaggle/input path holding an earlier session's /kaggle/working/out
+    part        None, or "rest" / "every_third" of the subset in seed order (32 + 16 of 48)
                 (attach that session's output as a dataset), or null
 
 Each phase is idempotent: a results directory whose task_results.jsonl has a row for every task is
@@ -36,6 +37,7 @@ CONFIG = {                       # defaults = the scope recorded in DESIGN.md se
     "concurrency": 8,
     "runs": 2,
     "resume_from": None,
+    "part": None,                # None: all n_tasks; "rest" / "every_third": runner.budget.split_every_third
 }
 
 
@@ -69,6 +71,10 @@ def main():
     excluded = validated_exclusions()
     tasks = stratified_subset([t for t in read_tasks(comp / "tasks.jsonl") if t.task_id not in excluded],
                               cfg["n_tasks"])
+    if cfg.get("part"):
+        from runner.budget import split_every_third
+        rest, third = split_every_third(tasks)
+        tasks = {"rest": rest, "every_third": third}[cfg["part"]]
     (out / alias).mkdir(parents=True, exist_ok=True)
     with open(out / alias / "sessions.jsonl", "a") as f:     # one line per session: code, env, config, tasks
         f.write(json.dumps({"code_sha256": (WORK / "code_sha256.txt").read_text().strip(),

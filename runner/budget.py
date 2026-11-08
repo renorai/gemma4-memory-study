@@ -56,6 +56,14 @@ def choose_scope(tasks_per_hour, hours_available, n_all=129, min_tasks=MIN_TASKS
     return s
 
 
+def split_every_third(tasks):
+    """Deterministic split of a subset in its seed order: every third task (positions 3, 6, 9, ...)
+    and the rest. Used to run one subset on two runners (DESIGN.md section 10)."""
+    third = [t for i, t in enumerate(tasks) if i % 3 == 2]
+    rest = [t for i, t in enumerate(tasks) if i % 3 != 2]
+    return rest, third
+
+
 def stratified_subset(tasks, n, seed=SUBSET_SEED):
     """Seeded random, outcome-blind and length-blind: per repo, order tasks by
     sha256(f"{seed}:{task_id}") (a random permutation fixed by the published seed); take

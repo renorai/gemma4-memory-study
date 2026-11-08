@@ -51,6 +51,14 @@ class BudgetTest(unittest.TestCase):
             want = sorted((t for t in ts if t.repo == r), key=key)[:4]
             self.assertEqual([t for t in s if t.repo == r], want)
 
+    def test_split_every_third(self):
+        from runner.budget import split_every_third
+        ts = [Task(f"t{i}", "a", "") for i in range(48)]
+        rest, third = split_every_third(ts)
+        self.assertEqual((len(rest), len(third)), (32, 16))
+        self.assertEqual([t.task_id for t in third[:3]], ["t2", "t5", "t8"])
+        self.assertEqual(sorted(t.task_id for t in rest + third), sorted(t.task_id for t in ts))
+
     def test_headline_runs_are_two_per_arm(self):
         self.assertEqual(HEADLINE_RUNS, 4)
 
