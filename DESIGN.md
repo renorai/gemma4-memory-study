@@ -480,8 +480,8 @@ dataset) and writes three push directories.
   `code_sha256` (the code dataset) and `env_sha256` (sha256 of the scorer-environment manifest,
   canonical JSON, `kernels/scorer_sandbox.py:manifest_sha256`). Every session line in
   `out/<model>/sessions.jsonl` records both too.
-- **2026-11-08T23:25Z, frozen-shared baseline moves to b04923a.** That commit includes the per-snapshot versions,
-  the repeat-rate statistics, the provenance per row and the replay check. No `none` arm run had
+- **2026-11-08T23:25Z, frozen-shared baseline moves to b495cfd.** It and b04923a include the per-snapshot versions,
+  the repeat-rate statistics, the provenance per row, the replay check and the two-runner split. No `none` arm run had
   been made before it. The no-memory baseline and every later arm run use this code.
 - **2026-11-08T23:27Z, two runners, one subset.** The 48 validated tasks are split deterministically in seed
   order (`runner/budget.py:split_every_third`). Every third task (16) runs on the Modal shard
