@@ -3,7 +3,7 @@ differs from the frozen baseline commit.
 
 Memory-arm work (memory/, submission/skills/graph_memory/, the lesson store format, the
 memory-only prompt part runner/prompt_parts/memory.md) may change; nothing below may. The
-baseline commit is ae4cacb (8 Nov 2026), the last commit that changed shared code (the
+baseline commit is 11d6a17 (8 Nov 2026), the last commit that changed shared code (the
 scorer-like test sandbox, task validation, seeded subset and analysis; DESIGN.md section 10);
 no `none` arm run had been made before it; set
 FROZEN_BASELINE_COMMIT to compare against another one. Skipped, never passed, when git or that
@@ -16,7 +16,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-BASELINE = os.environ.get("FROZEN_BASELINE_COMMIT", "ae4cacb7f378265b199877af531aadd4b58aef3d")
+BASELINE = os.environ.get("FROZEN_BASELINE_COMMIT", "11d6a1734a1de8061813a3da84791ba5aa7ce8e8")
 
 # Shared by both arms: runner, harness adapter, kernels/common.py, eval_runner.py, the prompts and
 # agent config both arms ship, the budget (eval_config.yaml, runner/budget.py), the scoring
@@ -24,7 +24,8 @@ BASELINE = os.environ.get("FROZEN_BASELINE_COMMIT", "ae4cacb7f378265b199877af531
 FROZEN = ("harness", "runner", "kernels/common.py", "kernels/eval_runner.py", "submission/agent.yaml",
           "submission/sub_agents", "submission/prompts", "submission/eval_config.yaml",
           # the test environment, task validation, arm runner and analysis (DESIGN.md section 10)
-          "kernels/scorer_sandbox.py", "kernels/envcheck", "kernels/arm_run/arm_run.py", "stats")
+          "kernels/scorer_sandbox.py", "kernels/envcheck", "kernels/arm_run/arm_run.py", "stats",
+          "pipeline/experiment.py")
 MEMORY_ONLY = ("runner/prompt_parts/memory.md",)
 
 
