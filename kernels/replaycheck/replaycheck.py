@@ -91,6 +91,12 @@ def child(tag, tree, trace, comp):
     out.mkdir(parents=True, exist_ok=True)
     env = scorer_sandbox.load_env(comp=comp) if "comp" in scorer_sandbox.load_env.__code__.co_varnames \
         else scorer_sandbox.load_env()
+    if not Path(os.environ["SWEGEMMA_PY313"]).exists():
+        # trees before 1914676 name uv's dangling symlinked python dir; point at the real one so the
+        # comparison is about the arm's requests, not about that (since fixed) path bug
+        real = [p for p in sorted(Path(scorer_sandbox.ENV_ROOT).glob("py/cpython-3.13*/bin/python3.13"))
+                if not p.parents[1].is_symlink()]
+        os.environ["SWEGEMMA_PY313"] = str(real[0])
     from harness.swegemma import models_yaml, read_tasks, write_tasks
     from runner.build_submission import build
     tasks = [t for t in read_tasks(comp / "tasks.jsonl") if t.task_id == TASK_ID]
