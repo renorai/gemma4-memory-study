@@ -430,6 +430,12 @@ dataset) and writes three push directories.
 
   The 48-task subset is rebuilt from the seeded order over the valid tasks only, still stratified
   by repo (`envcheck/validated_tasks.json`). FUNNEL_SKEW
+- **2026-11-08, frozen-shared baseline moves to ae4cacb.** That commit changed shared code: the
+  test sandbox, task validation, arm runner, seeded subset and analysis above. No `none` arm run
+  had been made before it, and every `none` baseline run uses it or later.
+  `tests/test_frozen_shared.py` now pins it and also freezes `kernels/scorer_sandbox.py`,
+  `kernels/envcheck`, `kernels/arm_run/arm_run.py` and `stats/`. Memory-arm work may change only
+  memory-arm files.
 
 ## 11. Stretch: rejection-sampling LoRA (exploratory, after the headline runs)
 
