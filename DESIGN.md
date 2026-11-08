@@ -426,10 +426,15 @@ dataset) and writes three push directories.
   | --- | --- | --- |
   | public tasks | 129 | fastapi 67, rich 48, requests 13, httpx 1 |
   | valid in the public environment (envcheck v1) | 37 | gold failed on 86: fastapi 66 (typing_inspection 60, dirty_equals 6), requests 10, rich 9, httpx 1 (own package shadowed) |
-  | valid after option A (envcheck v2) | FUNNEL_N | FUNNEL_NOTES |
+  | valid after option A (envcheck v2) | 68 | fastapi 12/67, rich 46/48, requests 9/13, httpx 1/1 (61 valid, 4 valid at import, 3 valid base timeouts); excluded 61: gold fails 57 (fastapi 51: 44 of them `Router.__init__() got an unexpected keyword argument 'on_startup'`, i.e. starlette 1.6.0, the newest competition wheel, is too new for these snapshots; requests 4; rich 2), base test errors 3 (fastapi), tests pass on base 1 (fastapi_14873) |
 
   The 48-task subset is rebuilt from the seeded order over the valid tasks only, still stratified
-  by repo (`envcheck/validated_tasks.json`). FUNNEL_SKEW
+  by repo (`envcheck/validated_tasks.json`). The valid set is skewed toward rich (46 of 68), so
+  the 48-task subset is rich 26, fastapi 12, requests 9, httpx 1, not the earlier 17/17/13/1.
+  68 valid tasks is under the 90 needed to start the baseline, so no arm run was started. The
+  next fix is per-snapshot versions: for packages with several competition wheels (starlette,
+  pydantic, sqlmodel, ...), take the newest one the snapshot's pyproject allows, not the newest
+  overall.
 - **2026-11-08, frozen-shared baseline moves to 11d6a17.** It and ae4cacb changed shared code:
   the test sandbox, task validation, arm runner, seeded subset, analysis and the recap plumbing
   (next entry). No `none` arm run had been made before it, and every `none` baseline run uses
