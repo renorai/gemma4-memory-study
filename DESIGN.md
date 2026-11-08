@@ -321,6 +321,11 @@ dataset) and writes three push directories.
   - Budget: char_budget = 1600 is replaced by token_budget = 800 (Renor's get_context default).
     k = 5 and per_task_cap = 2 are unchanged.
   - No embeddings are used, in any arm.
+- **2026-11-08T22:06Z: pre-commitment rules in `DESIGN-CHANGELOG-addendum.md`.** It sets the
+  48-task floor, when the 129-task run is the headline, the recap switch and the analysis
+  reporting. It was written before any memory-arm result. Where it and PREREG.md disagree,
+  PREREG.md governs. Its 22:15Z entry records this: H1(31B) and H1(12B) both stay confirmatory,
+  with Holm over the two models.
 - **TODO before the first arm run.** Record the scope that `choose_scope` picks from the
   throughput kernel's numbers: tasks, exploratory arms per model and concurrency.
 

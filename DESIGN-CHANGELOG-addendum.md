@@ -95,4 +95,19 @@ and `notebook/paper_tables.py`) implements rules 2–4 and regenerates every res
 
 ## Later entries
 
-(none yet)
+- **2026-11-08T22:15Z. No memory-arm, shuffled or recap result had been seen; none had been run.**
+  This entry exists because of the independent review of `6163bd8`.
+  - **The conflict.** The "Names" paragraph above labels 12B results "secondary". Rule 4.3 says a
+    CI that crosses zero carries "no significance claim". Both conflict with the frozen
+    PREREG.md: §1 makes H1(31B) and H1(12B) the only confirmatory tests, and the decision rule
+    applies a Holm correction over the two models.
+  - **The resolution.** Where this file and PREREG.md disagree, **PREREG.md governs**, so nothing
+    already frozen changes:
+    - **12B:** H1(12B) stays confirmatory beside H1(31B), with Holm over both. If 12B does not
+      complete, the paper says so and reports H1(12B) as not run. It does not relabel H1(12B)
+      as secondary.
+    - **Verdicts:** each H1 gets PREREG's verdict word. A CI that crosses zero is NOT SUPPORTED
+      (inconclusive) under PREREG's rule, and its difference is also reported as a pilot effect
+      size. Rule 4.3 adds that reading and changes no verdict.
+    - **Scope of rules 1–4:** they still settle what PREREG left open: the headline task set, the
+      recap switch, and the overflow and flip-rate reporting.

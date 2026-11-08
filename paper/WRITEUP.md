@@ -185,8 +185,10 @@ result existed:
    difference is a pilot effect size with no significance claim. Context overflow is reported
    per arm, and so is the flip rate.
 
-These rules sit on top of the frozen preregistration (PREREG.md, 7 Nov). Its verdict words still
-apply: SUPPORTED, CONTRADICTED or NOT SUPPORTED.
+These rules sit on top of the frozen preregistration (PREREG.md, 7 Nov), which governs where
+they differ. Its confirmatory tests are memory − no memory on 31B and on 12B, Holm-corrected
+over the two models. Their verdict words still apply: SUPPORTED, CONTRADICTED or NOT SUPPORTED.
+A CI that crosses zero is NOT SUPPORTED.
 
 ### 3.3 Main result
 
