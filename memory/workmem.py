@@ -71,7 +71,7 @@ else:  # run as a script: scripts/memory/workmem.py, its siblings importable by 
     except ImportError:  # pragma: no cover
         DONORS = ()
 
-DEFAULT_DIR = "/tmp/renor-notes"
+DEFAULT_DIR = "/tmp/renor-notes"      # + "/<task key>" (task_paths); /tmp is the TASK's tmp
 DEFAULT_TASK_FILE = "/tmp/task.md"
 DEFAULT_BUDGET = 600
 DEFAULT_EVERY = 6
@@ -141,16 +141,92 @@ def make_note(seq, kind, text, about=(), files=()):
             "subject": subject}
 
 
-def safe_dir(path):
-    """The notes folder, which must be inside a temporary-files folder (/tmp, or the system's)."""
+# --- where the task is ---------------------------------------------------------------------------
+#
+# A skill script reaches the task through ADK's run_skill_script: ADK writes a self-extracting
+# wrapper (google.adk.tools.skill_toolset._build_wrapper_code) that the harness runs with
+# `python3 <file>` through the task sandbox (adk_eval_core AdkSandboxCodeExecutor ->
+# sandbox.run_command). Two sandboxes, two meanings of "/workspace" and "/tmp" in the ARGUMENTS:
+#   container   the official scorer: the script runs inside the task's own container, where
+#               /workspace and /tmp ARE the task's folders.
+#   subprocess  swegemma --sandbox subprocess (Kaggle, Modal): run_command rewrites /workspace and
+#               /tmp in the COMMAND to the task's folders <root>/workspace and <root>/tmp, but the
+#               arguments sit inside the generated wrapper file and are not rewritten: they name
+#               the HOST's /workspace (absent) and /tmp (shared by every concurrent task). The
+#               sandbox sets TMPDIR (and HOME) to <root>/tmp and PYTHONPATH to <root>/workspace.
+# task_paths() finds the task's folders in both; task_path() maps an argument onto them.
+
+def task_paths(env=None):
+    """{'mode', 'workspace', 'tmp'} of the task this process runs for. mode 'subprocess' when
+    TMPDIR names a task tmp folder beside its workspace, else 'container' (literal paths)."""
+    env = os.environ if env is None else env
+    tmp = env.get("TMPDIR") or env.get("TEST_TMPDIR") or ""
+    if tmp and os.path.isdir(tmp) and os.path.realpath(tmp) != os.path.realpath("/tmp"):
+        root = os.path.dirname(os.path.realpath(tmp))
+        cands = [os.path.join(root, "workspace")] + [p for p in env.get("PYTHONPATH", "").split(os.pathsep) if p]
+        ws = next((c for c in cands if os.path.isdir(c) and os.path.dirname(os.path.realpath(c)) == root), None)
+        if ws:
+            return {"mode": "subprocess", "workspace": os.path.realpath(ws), "tmp": os.path.realpath(tmp)}
+    return {"mode": "container", "workspace": "/workspace", "tmp": "/tmp"}
+
+
+def task_path(path, paths=None):
+    """An argument path as the task means it: /workspace[/..] and /tmp[/..] mapped onto the task's
+    folders in the subprocess sandbox; unchanged in a container or for any other path."""
+    paths = paths or task_paths()
+    p = str(path)
+    if paths["mode"] != "subprocess":
+        return p
+    for lit, real in (("/workspace", paths["workspace"]), ("/tmp", paths["tmp"])):
+        if p == lit or p.startswith(lit + "/"):
+            return real + p[len(lit):]
+    return p
+
+
+def task_key(paths=None):
+    """Namespaces the notes folder per task: the task's own workspace and tmp folders."""
+    paths = paths or task_paths()
+    return hashlib.sha256(f"{os.path.realpath(paths['workspace'])}|{os.path.realpath(paths['tmp'])}"
+                          .encode()).hexdigest()[:12]
+
+
+def notes_dir(given=None, paths=None):
+    """The notes folder: --dir mapped onto the task, or the default <task tmp>/renor-notes/<key>."""
+    paths = paths or task_paths()
+    if given:
+        return safe_dir(task_path(given, paths), paths)
+    return safe_dir(task_path(DEFAULT_DIR, paths) + "/" + task_key(paths), paths)
+
+
+def safe_dir(path, paths=None):
+    """The notes folder must be a subfolder of the TASK's temporary folder: its sandbox tmp in the
+    subprocess sandbox, /tmp (or the system's) in a container. Never /workspace, never shared."""
     if not os.path.isabs(str(path)):
         # A relative path resolves against the current folder, which may itself be under /tmp.
         raise ValueError(f"notes folder must be an absolute path under /tmp, got {path}")
     real = os.path.realpath(path)
-    roots = {os.path.realpath("/tmp"), os.path.realpath(tempfile.gettempdir())}
+    paths = paths or task_paths()
+    if paths["mode"] == "subprocess":
+        roots = {os.path.realpath(paths["tmp"])}
+    else:
+        roots = {os.path.realpath("/tmp"), os.path.realpath(tempfile.gettempdir())}
     if not any(real == r or real.startswith(r + os.sep) for r in roots) or real in roots:
-        raise ValueError(f"notes folder must be a subfolder of /tmp, got {path}")
+        raise ValueError(f"notes folder must be a subfolder of the task's /tmp, got {path}")
     return real
+
+
+def status_line(paths=None):
+    """The first line a recap-arm run prints: proof the plumbing is alive, or a precise error."""
+    try:
+        paths = paths or task_paths()
+        d = notes_dir(None, paths)
+        os.makedirs(d, exist_ok=True)
+        with tempfile.NamedTemporaryFile(dir=d, prefix=".probe-"):   # writable; leaves nothing
+            pass
+        return (f"working notes: on (notes {os.path.join(d, 'notes.jsonl')}; task folder "
+                f"{paths['workspace']}; sandbox {paths['mode']})")
+    except Exception as e:
+        return f"memory error: working notes cannot be stored ({type(e).__name__}: {str(e)[:160]})"
 
 
 def load(dir_):
@@ -406,7 +482,7 @@ def parse(argv):
     op, opts, rest = None, {"about": [], "file": [], "focus": []}, []
     it = iter(argv)
     for a in it:
-        if a in ("note", "recap") and op is None and not rest:
+        if a in ("note", "recap", "status") and op is None and not rest:
             op = a
         elif a in ("--about", "--file", "--focus", "--symbol"):
             opts["about" if a == "--symbol" else a[2:]].append(next(it, ""))   # recap reads both
@@ -433,14 +509,15 @@ def main(argv=None, config=None):
         op, o, text = parse(argv)
         budget = max(100, min(_int(o.get("budget"), budget), budget))   # never above the configured cap
         every = _int(o.get("every"), every)
-        dir_ = safe_dir(o.get("dir") or DEFAULT_DIR)
-        task_file = o.get("task-file") or DEFAULT_TASK_FILE
+        paths = task_paths()
+        dir_ = notes_dir(o.get("dir"), paths)
+        task_file = task_path(o.get("task-file") or DEFAULT_TASK_FILE, paths)
         task_text = ""
         if os.path.exists(task_file):
             with open(task_file, encoding="utf-8", errors="replace") as f:
                 task_text = f.read(20000)
         notes = load(dir_)
-        repo = o.get("repo") or "/workspace"
+        repo = task_path(o.get("repo") or "/workspace", paths)
 
         def show(focus):
             if control:
@@ -455,14 +532,18 @@ def main(argv=None, config=None):
             append(dir_, note)
             notes.append(note)
             keys = ", ".join(note["about"] + note["files"])[:80]
-            print(f"noted #{note['n']} ({note['kind']}{': ' + keys if keys else ''})")
+            print(f"noted #{note['n']} ({note['kind']}{': ' + keys if keys else ''}) "
+                  f"[{os.path.join(dir_, 'notes.jsonl')}]")
             if every > 0 and note["n"] % every == 0:
                 print(show(" ".join(note["about"] + note["files"])))
             return 0
+        if op == "status":
+            print(status_line(paths))
+            return 0
         print(show(" ".join(_split(o["focus"] + o["about"]))))
         return 0
-    except Exception as e:  # never break the agent's episode over memory
-        print(f"working notes unavailable ({type(e).__name__}: {str(e)[:120]})")
+    except Exception as e:  # never break the agent's episode over memory; say exactly what failed
+        print(f"memory error: working notes unavailable ({type(e).__name__}: {str(e)[:160]})")
         return 0
 
 

@@ -27,8 +27,19 @@ task_results.jsonl, summary.json, patches/<id>.diff and ATIF traces/trace_<id>.j
     - run_skill_script copies only the skill's scripts/, assets/ and references/ into a fresh
       temporary folder and runs the script there, with argv built as ADK builds it.
 /workspace and /tmp are mapped onto two folders of the test, and /submission onto the built
-submission, by rewriting those path prefixes in commands and arguments: the stand-in for the
-container's mounts.
+submission, by rewriting those path prefixes in run_command's COMMAND.
+
+A fifth fact, from the first Modal recap check (9 Nov): how run_skill_script reaches the task
+depends on the sandbox (`mode`):
+    "subprocess"  swegemma --sandbox subprocess, which every Kaggle and Modal run uses: ADK writes
+                  a self-extracting wrapper (skill files + argv) into the workspace and the harness
+                  runs `python3 <wrapper>` through the sandbox, so only that command is rewritten;
+                  the ARGUMENTS stay literal and name the host's /workspace and /tmp. The process
+                  gets the sandbox environment: TMPDIR=HOME=<task>/tmp, PYTHONPATH=<task>/workspace,
+                  working directory <task>/workspace (adk_eval_core build_sanitized_env). This is
+                  the default.
+    "container"   the official scorer: the script runs in the task's own container, where
+                  /workspace and /tmp are the task's; emulated by rewriting the arguments.
 
 The scripted policy: if a recall printed a lesson mentioning `hmac.new`, it edits the repo
 function that calls hmac.new; else, if the issue says "digest", it edits the named function;
@@ -181,7 +192,10 @@ class FakeEval:
 class Sandbox:
     """One task's tool surface, as far as the memory protocol touches it (see the module doc)."""
 
-    def __init__(self, submission_dir, repo_dir, root):
+    def __init__(self, submission_dir, repo_dir, root, mode="subprocess"):
+        if mode not in ("subprocess", "container"):
+            raise ValueError(mode)
+        self.mode = mode
         self.sub = Path(submission_dir)
         self.root = Path(root)
         if self.root.exists():
@@ -229,16 +243,26 @@ class Sandbox:
             argv = [str(a) for a in args]
         else:
             argv = [x for k, v in (args or {}).items() for x in (f"--{k}", str(v))]
-        argv = [self._map(a) for a in argv]
-        with tempfile.TemporaryDirectory() as td:
-            for sub_dir in ("references", "assets", "scripts"):
-                if (skill / sub_dir).is_dir():
-                    shutil.copytree(skill / sub_dir, Path(td) / sub_dir,
-                                    ignore=shutil.ignore_patterns("__pycache__"))
-            if not (Path(td) / file_path).is_file():
-                return f"Error: script {file_path!r} not found in skill '{skill_name}'"
-            r = subprocess.run([sys.executable, "-I", file_path, *argv], cwd=td, capture_output=True,
-                               text=True, timeout=60, env={"PATH": "/usr/bin:/bin"})
+        files = {}
+        for sub_dir in ("references", "assets", "scripts"):
+            for f in sorted((skill / sub_dir).rglob("*")) if (skill / sub_dir).is_dir() else ():
+                if f.is_file() and "__pycache__" not in f.parts:
+                    files[f.relative_to(skill).as_posix()] = f.read_text(encoding="utf-8")
+        if file_path not in files:
+            return f"Error: script {file_path!r} not found in skill '{skill_name}'"
+        if self.mode == "container":
+            argv = [self._map(a) for a in argv]
+            env = {"PATH": "/usr/bin:/bin"}
+        else:   # the sandbox environment adk_eval_core gives every command (build_sanitized_env)
+            env = {"PATH": "/usr/bin:/bin", "TMPDIR": str(self.tmp), "HOME": str(self.tmp),
+                   "TEST_TMPDIR": str(self.tmp), "PYTHONNOUSERSITE": "1", "PYTHONPATH": str(self.workspace)}
+        wrapper = self.workspace / f".adk_exec_{abs(hash((file_path, tuple(argv)))) % 10**8:08d}.py"
+        wrapper.write_text(adk_wrapper(files, file_path, argv), encoding="utf-8")
+        try:
+            r = subprocess.run([sys.executable, str(wrapper)], cwd=self.workspace, capture_output=True,
+                               text=True, timeout=60, env=env)
+        finally:
+            wrapper.unlink()
         return (r.stdout + r.stderr).strip()
 
     def recall_call(self, problem, symbols=()):
@@ -247,6 +271,35 @@ class Sandbox:
             args += ["--symbol", s]
         return ("run_skill_script", {"skill_name": "graph-memory", "file_path": "scripts/recall.py",
                                      "args": args}, self.run_skill_script("graph-memory", "scripts/recall.py", args))
+
+
+def adk_wrapper(files, file_path, argv):
+    """The self-extracting script ADK's run_skill_script builds (google.adk.tools.skill_toolset
+    SkillToolset._build_wrapper_code, google-adk 1.36.1): the skill's files into a fresh
+    TemporaryDirectory (under TMPDIR), chdir there, sys.argv = [file_path, *args], runpy."""
+    return "\n".join([
+        "import os, sys, runpy, tempfile",
+        f"_files = {files!r}",
+        "def _materialize_and_run():",
+        "  _orig_cwd = os.getcwd()",
+        "  with tempfile.TemporaryDirectory() as td:",
+        "    for rel_path, content in _files.items():",
+        "      full_path = os.path.join(td, rel_path)",
+        "      os.makedirs(os.path.dirname(full_path), exist_ok=True)",
+        "      with open(full_path, 'w') as f:",
+        "        f.write(content)",
+        "    os.chdir(td)",
+        "    try:",
+        f"      sys.argv = {[file_path, *argv]!r}",
+        "      try:",
+        f"        runpy.run_path({file_path!r}, run_name='__main__')",
+        "      except SystemExit as e:",
+        "        if e.code is not None and e.code != 0:",
+        "          raise e",
+        "    finally:",
+        "      os.chdir(_orig_cwd)",
+        "_materialize_and_run()",
+    ])
 
 
 def memory_protocol(prompt):

@@ -98,7 +98,10 @@ class BuiltArms(unittest.TestCase):
             self.assertNotIn("alpha's own", r.stdout)
         r = subprocess.run([sys.executable, "-I", str(self.d / "node" / "skills" / "graph-memory" / "scripts" / "recall.py"),
                             "--symbol", "nothing_here"], cwd=repos / "beta", capture_output=True, text=True, env=env)
-        self.assertEqual(r.stdout.strip(), "no lessons for this code")
+        # a status line first (recall.py: a broken setup must be visible in the trace), then the page
+        self.assertEqual(r.stdout.strip().splitlines(),
+                         ["working notes: off (this run has lessons, not notes: do not call workmem.py)",
+                          "no lessons for this code"])
 
     def test_build_refuses_bad_inputs(self):
         with self.assertRaises(ValueError):

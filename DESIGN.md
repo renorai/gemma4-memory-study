@@ -563,6 +563,61 @@ dataset) and writes three push directories.
   hashes. The full table (seed rank, task, repo, backend) is in the run outputs.
 - **2026-11-09T00:27Z, the replay check ran at the final pin.** Its `post` tree has code hash dee8321a..., the
   hash of ff9bf75d, checked against the replay dataset. Its `pre` tree is 7e75bf0e (dc480958...).
+- **2026-11-09T01:35Z, pin moved from ff9bf75d: the recap plumbing failed in the real harness;
+  written before any memory-arm result.** The first Modal recap check (2 tasks, ff9bf75d, after the
+  Modal no-memory arm) wrote no note at all. Cause, from its traces:
+  - Under `--sandbox subprocess` (every Kaggle and Modal run), `run_skill_script` runs ADK's
+    self-extracting wrapper through the sandbox, but only that command is rewritten. The
+    arguments `/workspace` and `/tmp/task.md` stay literal and name the host's folders.
+    recall.py printed `memory unavailable (no repository at /workspace; pass --repo)`, never
+    `working notes: on`; the prompt said to skip working notes otherwise, and the agent did.
+  - Notes would have gone to the host's /tmp/renor-notes, shared by every concurrent task.
+  - The prompt's `find /` fallback found the unbuilt template copy of the skill elsewhere on the
+    machine, which fails with ModuleNotFoundError.
+  The no-memory arm was untouched: it ships no memory section.
+
+  Fix (memory-arm files only, plus tests; shared paths unchanged, and
+  `tests/test_frozen_shared.py` still succeeds):
+  - `memory/workmem.py`: `task_paths()` finds the task's own folders (TMPDIR beside a workspace
+    under the subprocess sandbox; literal /workspace and /tmp in a container, the official
+    scorer). `task_path()` maps the arguments onto them. Notes live in
+    `<task tmp>/renor-notes/<task key>/`, a per-task namespace. Each acknowledgement names the file
+    it wrote. `status` prints `working notes: on (notes ...)` or `memory error: <what failed>`.
+  - `scripts/recall.py`: its first line is always a status line (`working notes: on`, `off`, or
+    `memory error: ...`). The recap arms no longer need the repository to report it.
+  - `runner/prompt_parts/memory.md`: no `run_command` or `find /` fallback, and no "otherwise
+    skip". On a `memory error` the agent retries once, then continues; the error stays in the
+    trace.
+  - `fake_harness.Sandbox` now runs skill scripts as the real subprocess sandbox does (literal
+    arguments, TMPDIR/HOME/PYTHONPATH of the task, ADK's wrapper). `mode="container"` keeps the
+    old rewriting for the official scorer. `tests/test_skill_sandbox.py` reproduces the failure
+    (it fails on ff9bf75d with the same message) and checks per-task isolation with two
+    concurrent tasks.
+  The new pin is recorded in the run outputs (`code_sha256` per row). The 32 Modal `none` rows
+  ran at dee8321a (ff9bf75d). Every frozen path is byte-identical at the new pin, and a `none`
+  submission is identical, so those rows stay valid and pair with recap rows from the new pin.
+- **2026-11-09T01:35Z, plumbing assertions and the analysis population; written before any
+  memory-arm result.** Every memory-arm row gets the fields of `memory/plumbing.py`, read from its
+  trace:
+  - `skill_status`, `skill_error` and `notes_written`;
+  - `writes_in_task_dir`: every note in one task-scoped file, and none in the patch;
+  - `recall_runs_after_compaction`: a recap page shown after each compaction, before the next;
+  - `recap_tokens`;
+  - `plumbing_failed`: recap arms whose status is not "on", or that show a memory error, a write
+    outside the task folder, or a compaction without a recap.
+  These are additive columns: stats/ and pipeline/experiment.py are unchanged. **Intention to
+  treat is primary:** every assigned run counts, whatever its plumbing. Per-protocol (excluding
+  `plumbing_failed` runs) is secondary. The `plumbing_failed` count is reported per backend.
+  Any reading of these columns by the shared analysis is added, never changed, and recorded
+  here.
+  Finding: `harness.swegemma.read_trace` takes tool outputs only from `observation.results[]`,
+  while real swegemma traces carry a single output in `observation.content`. On real runs, step
+  outputs are empty, and so is anything read from them (`lesson_ids_shown`, hence the `node`
+  arm's `lessons_shown`). The reader is frozen; memory/plumbing.py reads the trace itself.
+- **2026-11-09T01:35Z, ceiling caveat; written before any memory-arm result.** The Modal
+  no-memory baseline resolved 23 of 32 runs (72%) on its 16 tasks. The resolve rate therefore
+  has limited headroom on that subset, and the repeated-action rate (stats/repeats.py) is the
+  key mechanism metric. The resolve rate stays the primary outcome, as registered.
 
 ## 11. Stretch: rejection-sampling LoRA (exploratory, after the headline runs)
 
