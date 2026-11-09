@@ -74,6 +74,15 @@ class BuiltArms(unittest.TestCase):
         section = node.replace(none.split("## Method")[0], "").split("## Method")[0]
         self.assertTrue(section.startswith("## Memory from earlier runs"))
 
+    def test_recall_is_the_explicit_second_action(self):
+        """765dbb0: the first recall must come right after saving the issue, before explorer or any
+        read; when the wording was softer the agent skipped it (DESIGN.md section 10)."""
+        node = (self.d / "node" / "prompts" / "coder.md").read_text()
+        i = node.index("Second action, right after saving the issue")
+        self.assertIn("Do not skip it", node[i:i + 300])
+        self.assertLess(i, node.index("`file_path` \"scripts/recall.py\""))
+        self.assertLess(i, node.index("When `explorer` has named the likely fix site"))
+
     def test_shipped_code_is_verbatim_and_py38(self):
         for f in SHIPPED:
             shipped = (self.d / "node" / "skills" / "graph-memory" / "scripts" / "memory" / f).read_bytes()

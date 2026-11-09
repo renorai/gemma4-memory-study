@@ -631,7 +631,7 @@ dataset) and writes three push directories.
 
   This per-note cost counts toward the recap arms' context use and is not part of the 600-token
   recap budget. It is reported with the arm's token totals.
-- **2026-11-09T02:00Z, pin moved from ff43737: the second Modal recap check never reached the
+- **2026-11-09T01:49Z, pin moved from ff43737: the second Modal recap check never reached the
   skill; written before any memory-arm result.** At ff43737 (code 00a0a49a...), on the same 2
   tasks (fastapi_14487, fastapi_14873), neither agent called `recall.py`. One saved the issue to
   /tmp/task.md and went straight to `explorer`; the other did not save it at all. With no status
