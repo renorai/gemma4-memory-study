@@ -95,6 +95,84 @@ def selftest(srcs):
         assert not hit, f"self-test: planted {planted} matched {hit}"
 
 
+# Headline claims bound to the specific analysis.json key they report. The loose check above only asks
+# that a number exists somewhere in the sources, so a stale value that also appears elsewhere passes
+# (that is how -2.1 survived as the sensitivity bound: it is also the primary interval's lower bound).
+# Each claim: (anchor text that must appear in WRITEUP.md, [(key path, scale, decimals, signed)]).
+# Every rendered value must appear inside the anchor's line; the anchor is the line containing it.
+P = "primary_resolve_run1"
+E = "extension_primary_resolve_run1"
+C = "combined_secondary_resolve_run1"
+S = "sensitivity_resolve_all_available_runs"
+
+
+def _set(prefix, scaled=True):
+    return [(prefix + ["x_resolved"], 1, 0, False), (prefix + ["y_resolved"], 1, 0, False),
+            (prefix + ["x_only"], 1, 0, False), (prefix + ["y_only"], 1, 0, False),
+            (prefix + ["diff"], 100, 1, True), (prefix + ["newcombe95", 0], 100, 1, True),
+            (prefix + ["newcombe95", 1], 100, 1, True), (prefix + ["mcnemar_p"], 1, 3, False)]
+
+
+CLAIMS = [
+    ("| Pooled, 48 (primary)", _set([P, "pooled"])),
+    ("| Modal H100, 16", _set([P, "modal"])),
+    ("| Kaggle 4x L4, 32", _set([P, "kaggle"])),
+    ("| AWS L40S, 50 (extension primary)", _set([E])),
+    ("| Combined, 98 (secondary)", _set([C])),
+    ("per-task mean over all available runs", [([S, "pooled", "mean_diff"], 100, 1, True),
+                                                ([S, "pooled", "bootstrap95", 0], 100, 1, True),
+                                                ([S, "pooled", "bootstrap95", 1], 100, 1, True)]),
+    ("backend-stratified bootstrap gives", [([P, "pooled", "bootstrap95", 0], 100, 1, False),
+                                               ([P, "pooled", "bootstrap95", 1], 100, 1, True),
+                                               ([E, "bootstrap95", 0], 100, 1, True),
+                                               ([E, "bootstrap95", 1], 100, 1, False),
+                                               ([C, "bootstrap95", 0], 100, 1, True),
+                                               ([C, "bootstrap95", 1], 100, 1, True)]),
+]
+
+
+def _rend(v, scale, dec, signed):
+    x = Decimal(repr(v)) * scale
+    s = str(x.quantize(Decimal(1).scaleb(-dec), rounding=ROUND_HALF_UP))
+    if signed and not s.startswith("-"):
+        s = "+" + s
+    return s
+
+
+def check_claims():
+    """Return a list of failures; every claim's values must be rendered, from its own key, in its line."""
+    analysis = json.loads((ROOT / "results" / "analysis.json").read_text())
+    lines = body().splitlines()
+    bad = []
+    for anchor, items in CLAIMS:
+        found = [i for i, l in enumerate(lines) if anchor in l]
+        if not found:
+            bad.append(f"claim anchor not found: {anchor!r}")
+            continue
+        # a sentence can wrap, so the anchor's paragraph (up to a blank line) is the searched text
+        i = found[0]
+        j = i
+        while j + 1 < len(lines) and lines[j + 1].strip() and not lines[j + 1].startswith("|"):
+            j += 1
+        k = i
+        while k > 0 and lines[k - 1].strip() and not lines[k - 1].startswith("|"):
+            k -= 1
+        para = " ".join(lines[k:j + 1]) if not lines[i].startswith("|") else lines[i]
+        flat = para.replace(",", "")
+        for path, scale, dec, signed in items:
+            v = analysis
+            for key in path:
+                v = v[key]
+            want = _rend(v, scale, dec, signed)
+            cand = {want, want.replace("+", "") if signed else want}
+            if dec == 3:    # p-values are written at 2 or 3 decimals
+                cand |= {want.rstrip("0").rstrip("."), _rend(v, scale, 2, False)}
+                cand |= {c.rstrip("0").rstrip(".") if "." in c else c for c in list(cand)}
+            if not any(c in flat for c in cand):
+                bad.append(f"{anchor!r}: {'.'.join(map(str, path))} = {want} not in its line")
+    return bad
+
+
 def main(verbose=False):
     text = body()
     words = len(re.findall(r"\S+", text))
@@ -125,7 +203,11 @@ def main(verbose=False):
             print(f"  ok  line {line}: {tok}  <- {h}")
     for line, tok in bad:
         print(f"  UNMATCHED line {line}: {tok}")
-    return 0 if not bad and words <= 3000 else 1
+    claims = check_claims()
+    print(f"headline claims bound to analysis.json keys: {len(CLAIMS)} checked; mismatches {len(claims)}")
+    for c in claims:
+        print("  CLAIM MISMATCH:", c)
+    return 0 if not bad and not claims and words <= 3000 else 1
 
 
 if __name__ == "__main__":
