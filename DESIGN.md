@@ -516,6 +516,32 @@ dataset) and writes three push directories.
     two trees. This short replay did not reach the compaction threshold, so no compaction event
     was compared.
   - Both replays resolved the task, because they replayed the recorded edits.
+- **2026-11-09T00:24Z, validity funnel after per-snapshot versions; subset re-seeded once; no-memory baseline
+  started.**
+
+  | step | tasks | notes |
+  | --- | --- | --- |
+  | public tasks | 129 | fastapi 67, rich 48, requests 13, httpx 1 |
+  | valid in the public environment (envcheck v1) | 37 | |
+  | valid after option A (envcheck v2) | 68 | starlette 1.6.0 too new for 44 fastapi snapshots |
+  | valid after per-snapshot versions (envcheck v3) | 105 | fastapi 49/67, rich 46/48, requests 9/13, httpx 1/1 |
+
+  The 24 excluded tasks, with the rule applied to each:
+  - fastapi, base errors besides failures: 11. These are collection or setup errors on the base
+    commit (14455, 14978, 14485, 14459, 14266, 14791, 14962, 14512, 15023, 14246, 14262).
+  - fastapi, gold not resolved: 5 (14356, 14186, 15745, 15763, 15785).
+  - fastapi, tests pass on base: 2 (14851, 14077).
+  - requests, gold not resolved: 4 (6757, 6589, 6629, 6592; one failing test each).
+  - rich, gold not resolved: 2 (3486, 3472).
+
+  The 48-task subset, re-seeded once over the 105 valid tasks (stratified, seed 20261107), is
+  fastapi 19, rich 19, requests 9, httpx 1. It is still short of requests, because only 9 are
+  valid. The split is every third task in seed order: 16 run on Modal (requests 9, rich 4,
+  fastapi 3) and 32 on Kaggle (fastapi 16, rich 15, httpx 1). Because the seed order is
+  round-robin across repos, the split is uneven by repo. It is deterministic and both arms use
+  it. The subset is not re-seeded again.
+  The validation ran code hash 5bd2d706... (aa7e3378). The sandbox environment code is the same at
+  the final pin, except the python3.13 path fix.
 
 ## 11. Stretch: rejection-sampling LoRA (exploratory, after the headline runs)
 
