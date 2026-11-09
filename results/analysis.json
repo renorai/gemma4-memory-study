@@ -12,8 +12,8 @@
     0.1875
    ],
    "newcombe95": [
-    -0.01258478680912882,
-    0.17544074836464427
+    -0.02067473591704,
+    0.1831193117366296
    ],
    "mcnemar_p": 0.21875
   },
@@ -29,8 +29,8 @@
     0.25
    ],
    "newcombe95": [
-    -0.14627890328552293,
-    0.2672189112050156
+    -0.17545513873046348,
+    0.29302903998954377
    ],
    "mcnemar_p": 1.0
   },
@@ -46,15 +46,15 @@
     0.21875
    ],
    "newcombe95": [
-    -0.004693522334867681,
-    0.18636605383679328
+    -0.021374992529007944,
+    0.2020392681063818
    ],
    "mcnemar_p": 0.25
   }
  },
  "repeats_run1": {
   "repeat_rate": {
-   "label": "registered",
+   "label": "registered: repeats per compaction",
    "pooled": {
     "n": 41,
     "mean_diff": 0.300677506775068,
@@ -163,7 +163,7 @@
    }
   },
   "repeat_rate_posthoc": {
-   "label": "post-hoc",
+   "label": "post-hoc: repeats per compaction, submit_patch calls after the first ok submit removed",
    "pooled": {
     "n": 41,
     "mean_diff": -1.3544521873790165,
@@ -272,7 +272,7 @@
    }
   },
   "repeats_after_compaction": {
-   "label": "post-hoc (a) raw, registered steps",
+   "label": "post-hoc (a): RAW repeats per task at the registered steps (includes post-submit submit_patch loops)",
    "pooled": {
     "n": 48,
     "mean_diff": 8.125,
@@ -308,7 +308,7 @@
    }
   },
   "repeats_after_compaction_posthoc": {
-   "label": "post-hoc (a) raw, no post-submit submits",
+   "label": "post-hoc (a): RAW repeats per task EXCLUDING submit_patch calls after the first ok submit",
    "pooled": {
     "n": 48,
     "mean_diff": -0.9791666666666666,
@@ -808,8 +808,8 @@
      0.19230769230769232
     ],
     "newcombe95": [
-     -0.021693605074041472,
-     0.1706149595128743
+     -0.0453907286499252,
+     0.19294210811571194
     ],
     "mcnemar_p": 0.5
    },
@@ -825,8 +825,8 @@
      0.6
     ],
     "newcombe95": [
-     -0.13631935814883883,
-     0.49852372816599533
+     -0.2852241945269415,
+     0.5883838133857084
     ],
     "mcnemar_p": 1.0
    },
@@ -842,8 +842,8 @@
      0.14285714285714285
     ],
     "newcombe95": [
-     -0.04170323932040676,
-     0.13585855378444514
+     -0.07743735360077886,
+     0.16953954709753782
     ],
     "mcnemar_p": 1.0
    }
@@ -1037,8 +1037,8 @@
      0.25
     ],
     "newcombe95": [
-     -0.14627890328552293,
-     0.2672189112050156
+     -0.17545513873046348,
+     0.29302903998954377
     ],
     "mcnemar_p": 1.0
    },
@@ -1084,8 +1084,8 @@
      0.21875
     ],
     "newcombe95": [
-     -0.08080003717807008,
-     0.20013173777413804
+     -0.09250079606088002,
+     0.21135074668241122
     ],
     "mcnemar_p": 0.6875
    },
@@ -1193,51 +1193,107 @@
    "runs_with_note": 4
   }
  },
+ "discordant_pairs_run1_posthoc_descriptive": [
+  {
+   "backend": "modal",
+   "task_id": "requests_7328",
+   "run1_winner": "none",
+   "losing_arm": "recap",
+   "losing_arm_solved_in_run2": false,
+   "recap_submit_loop_run1": true,
+   "none_submit_loop_run1": false
+  },
+  {
+   "backend": "modal",
+   "task_id": "rich_3676",
+   "run1_winner": "recap",
+   "losing_arm": "none",
+   "losing_arm_solved_in_run2": true,
+   "recap_submit_loop_run1": false,
+   "none_submit_loop_run1": false
+  },
+  {
+   "backend": "modal",
+   "task_id": "rich_4079",
+   "run1_winner": "recap",
+   "losing_arm": "none",
+   "losing_arm_solved_in_run2": true,
+   "recap_submit_loop_run1": false,
+   "none_submit_loop_run1": false
+  },
+  {
+   "backend": "kaggle",
+   "task_id": "fastapi_14605",
+   "run1_winner": "recap",
+   "losing_arm": "none",
+   "losing_arm_solved_in_run2": true,
+   "recap_submit_loop_run1": false,
+   "none_submit_loop_run1": false
+  },
+  {
+   "backend": "kaggle",
+   "task_id": "fastapi_9555",
+   "run1_winner": "recap",
+   "losing_arm": "none",
+   "losing_arm_solved_in_run2": true,
+   "recap_submit_loop_run1": false,
+   "none_submit_loop_run1": false
+  },
+  {
+   "backend": "kaggle",
+   "task_id": "rich_3454",
+   "run1_winner": "recap",
+   "losing_arm": "none",
+   "losing_arm_solved_in_run2": true,
+   "recap_submit_loop_run1": false,
+   "none_submit_loop_run1": false
+  }
+ ],
  "posthoc_tests": {
   "count": 23,
   "tests": [
    {
-    "test": "Wilcoxon signed-rank, recap - none, post-hoc",
+    "test": "Wilcoxon signed-rank, recap - none, post-hoc: repeats per compaction, submit_patch calls after the first ok submit removed",
     "stratum": "pooled",
     "p": 0.2330531511688605
    },
    {
-    "test": "Wilcoxon signed-rank, recap - none, post-hoc",
+    "test": "Wilcoxon signed-rank, recap - none, post-hoc: repeats per compaction, submit_patch calls after the first ok submit removed",
     "stratum": "modal",
     "p": 0.2509765625
    },
    {
-    "test": "Wilcoxon signed-rank, recap - none, post-hoc",
+    "test": "Wilcoxon signed-rank, recap - none, post-hoc: repeats per compaction, submit_patch calls after the first ok submit removed",
     "stratum": "kaggle",
     "p": 0.029312610626220703
    },
    {
-    "test": "Wilcoxon signed-rank, recap - none, post-hoc (a) raw, registered steps",
+    "test": "Wilcoxon signed-rank, recap - none, post-hoc (a): RAW repeats per task at the registered steps (includes post-submit submit_patch loops)",
     "stratum": "pooled",
     "p": 0.5423946445807815
    },
    {
-    "test": "Wilcoxon signed-rank, recap - none, post-hoc (a) raw, registered steps",
+    "test": "Wilcoxon signed-rank, recap - none, post-hoc (a): RAW repeats per task at the registered steps (includes post-submit submit_patch loops)",
     "stratum": "modal",
     "p": 0.23583984375
    },
    {
-    "test": "Wilcoxon signed-rank, recap - none, post-hoc (a) raw, registered steps",
+    "test": "Wilcoxon signed-rank, recap - none, post-hoc (a): RAW repeats per task at the registered steps (includes post-submit submit_patch loops)",
     "stratum": "kaggle",
     "p": 0.10838949680328369
    },
    {
-    "test": "Wilcoxon signed-rank, recap - none, post-hoc (a) raw, no post-submit submits",
+    "test": "Wilcoxon signed-rank, recap - none, post-hoc (a): RAW repeats per task EXCLUDING submit_patch calls after the first ok submit",
     "stratum": "pooled",
     "p": 0.5256008111173287
    },
    {
-    "test": "Wilcoxon signed-rank, recap - none, post-hoc (a) raw, no post-submit submits",
+    "test": "Wilcoxon signed-rank, recap - none, post-hoc (a): RAW repeats per task EXCLUDING submit_patch calls after the first ok submit",
     "stratum": "modal",
     "p": 0.15673828125
    },
    {
-    "test": "Wilcoxon signed-rank, recap - none, post-hoc (a) raw, no post-submit submits",
+    "test": "Wilcoxon signed-rank, recap - none, post-hoc (a): RAW repeats per task EXCLUDING submit_patch calls after the first ok submit",
     "stratum": "kaggle",
     "p": 0.10854530334472656
    },

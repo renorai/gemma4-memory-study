@@ -6,11 +6,11 @@ Full JSON: pooled_run1_v2.json; script: scripts/pooled2.py. Everything is comput
 
 | set | recap / none resolved | recap only / none only | diff | bootstrap 95% | Newcombe paired score 95% | exact McNemar p |
 |---|---|---|---|---|---|---|
-| pooled 48 | 29 / 25 | 5 / 1 | +0.083 | [0.000, +0.188] (stratified) | [-0.013, +0.175] | 0.22 |
-| Modal 16 | 12 / 11 | 2 / 1 | +0.063 | [-0.125, +0.250] | [-0.146, +0.267] | 1.0 |
-| Kaggle 32 | 17 / 14 | 3 / 0 | +0.094 | [0.000, +0.219] | [-0.005, +0.186] | 0.25 |
+| pooled 48 | 29 / 25 | 5 / 1 | +0.083 | [0.000, +0.188] (stratified) | [-0.021, +0.183] | 0.22 |
+| Modal 16 | 12 / 11 | 2 / 1 | +0.063 | [-0.125, +0.250] | [-0.176, +0.293] | 1.0 |
+| Kaggle 32 | 17 / 14 | 3 / 0 | +0.094 | [0.000, +0.219] | [-0.021, +0.202] | 0.25 |
 
-- **In plain terms:** recap solved 4 more of 48 tasks than no memory (+8.3 points). That is consistent with no effect. By the score interval, the data exclude effects below about -1 point and above about +18 points.
+- **In plain terms:** recap solved 4 more of 48 tasks than no memory (+8.3 points). That is consistent with no effect. By the score interval (Newcombe method 10, continuity-corrected phi; corrected 2026-11-09), the data exclude effects below about -2 points and above about +18 points.
 - **The bootstrap's 0.000 lower bound is an artefact, not evidence against harm.** With 3/0 (Kaggle) and 5/1 (pooled) discordant pairs, the percentile bootstrap pins at 0. The score interval crosses 0.
 
 ## 2-3. Repeated actions, the denominator check (all POST-HOC, paired, recap - none)

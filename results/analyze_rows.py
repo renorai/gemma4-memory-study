@@ -31,11 +31,15 @@ def wilson(k, n, z=1.959964):
 
 
 def newcombe_paired(a, b, c, d):
-    """Newcombe (1998) method 10, p1 - p2 for paired binary data (b: x only, c: y only)."""
+    """Newcombe (1998) method 10, p1 - p2 for paired binary data (a: both, b: x only, c: y only,
+    d: neither). Wilson score limits for each margin, combined with the continuity-corrected
+    correlation: phi* = max(A - N/2, 0) / sqrt(efgh) when A = ad - bc > 0, else A / sqrt(efgh),
+    with e, f, g, h the four margins (as in ratesci's MOVER_newc)."""
     n = a + b + c + d; p1, p2 = (a + b) / n, (a + c) / n
     l1, u1 = wilson(a + b, n); l2, u2 = wilson(a + c, n)
     den = (a + b) * (c + d) * (a + c) * (b + d)
-    phi = (a * d - b * c) / math.sqrt(den) if den > 0 else 0.0
+    A = a * d - b * c
+    phi = ((max(A - n / 2, 0) if A > 0 else A) / math.sqrt(den)) if den > 0 else 0.0
     dl = math.sqrt(max(0.0, (p1 - l1) ** 2 - 2 * phi * (p1 - l1) * (u2 - p2) + (u2 - p2) ** 2))
     du = math.sqrt(max(0.0, (u1 - p1) ** 2 - 2 * phi * (u1 - p1) * (p2 - l2) + (p2 - l2) ** 2))
     return p1 - p2 - dl, p1 - p2 + du
@@ -101,9 +105,10 @@ def main(rows_path=HERE / "run_rows.jsonl", out_path=HERE / "analysis.json"):
     R1, N1, N2 = ("recap", 1), ("none", 1), ("none", 2)
     sets = (("pooled", BACKENDS), ("modal", ("modal",)), ("kaggle", ("kaggle",)))
     out = {"primary_resolve_run1": {k: resolve(I, ks, R1, N1) for k, ks in sets}}
-    metrics = {"repeat_rate": "registered", "repeat_rate_posthoc": "post-hoc",
-               "repeats_after_compaction": "post-hoc (a) raw, registered steps",
-               "repeats_after_compaction_posthoc": "post-hoc (a) raw, no post-submit submits",
+    metrics = {"repeat_rate": "registered: repeats per compaction",
+               "repeat_rate_posthoc": "post-hoc: repeats per compaction, submit_patch calls after the first ok submit removed",
+               "repeats_after_compaction": "post-hoc (a): RAW repeats per task at the registered steps (includes post-submit submit_patch loops)",
+               "repeats_after_compaction_posthoc": "post-hoc (a): RAW repeats per task EXCLUDING submit_patch calls after the first ok submit",
                "repeats_per_call_after_compaction": "post-hoc (b) per call, registered steps",
                "repeats_per_call_after_compaction_posthoc": "post-hoc (b) per call, no post-submit submits",
                "compactions": "post-hoc (c) compactions per task"}
@@ -152,6 +157,18 @@ def main(rows_path=HERE / "run_rows.jsonl", out_path=HERE / "analysis.json"):
                                   "notes_written": sum(x.get("notes_written") or 0 for x in rs) if arm == "recap" else None,
                                   "runs_with_note": sum(1 for x in rs if x.get("notes_written")) if arm == "recap" else None}
     out["descriptive_run1"] = desc
+    # post-hoc descriptive: each discordant run-1 pair, and whether the losing arm solved it in its other run
+    disc = []
+    for b in BACKENDS:
+        for t, rx, ry in pairs(I, b, R1, N1):
+            if rx["success"] == ry["success"]:
+                continue
+            winner, loser = ("recap", "none") if rx["success"] else ("none", "recap")
+            other = I.get((b, loser, 2, t))
+            disc.append({"backend": b, "task_id": t, "run1_winner": winner, "losing_arm": loser,
+                         "losing_arm_solved_in_run2": None if other is None else bool(other["success"]),
+                         "recap_submit_loop_run1": rx["submit_loop"], "none_submit_loop_run1": ry["submit_loop"]})
+    out["discordant_pairs_run1_posthoc_descriptive"] = disc
     # every post-hoc test run so far (p values from this file's own computations)
     ph = []
     for m, lab in metrics.items():
@@ -165,6 +182,8 @@ def main(rows_path=HERE / "run_rows.jsonl", out_path=HERE / "analysis.json"):
         v = out["per_protocol_run1"]["repeat_rate_posthoc"][k]
         if v.get("n"):
             ph.append({"test": "Wilcoxon, per-protocol, repeat rate post-hoc variant", "stratum": k, "p": v["wilcoxon_p"]})
+    # The Modal worker's own H-a counter (9/2/5, two-sided p 0.061) is NOT counted: it tested the same
+    # hypothesis on the same traces and is superseded by the frozen detector below.
     ph.append({"test": "H-a one-sided Wilcoxon (Modal discovery, post-hoc there)", "stratum": "modal",
                "p": hyp["modal"]["H-a_p_one_sided"]})
     ph.append({"test": "H-b one-sided Fisher (Modal discovery, post-hoc there)", "stratum": "modal",
