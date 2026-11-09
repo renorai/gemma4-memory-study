@@ -1,0 +1,1316 @@
+{
+ "primary_resolve_run1": {
+  "pooled": {
+   "pairs": 48,
+   "x_resolved": 29,
+   "y_resolved": 25,
+   "x_only": 5,
+   "y_only": 1,
+   "diff": 0.08333333333333333,
+   "bootstrap95": [
+    0.0,
+    0.1875
+   ],
+   "newcombe95": [
+    -0.01258478680912882,
+    0.17544074836464427
+   ],
+   "mcnemar_p": 0.21875
+  },
+  "modal": {
+   "pairs": 16,
+   "x_resolved": 12,
+   "y_resolved": 11,
+   "x_only": 2,
+   "y_only": 1,
+   "diff": 0.0625,
+   "bootstrap95": [
+    -0.125,
+    0.25
+   ],
+   "newcombe95": [
+    -0.14627890328552293,
+    0.2672189112050156
+   ],
+   "mcnemar_p": 1.0
+  },
+  "kaggle": {
+   "pairs": 32,
+   "x_resolved": 17,
+   "y_resolved": 14,
+   "x_only": 3,
+   "y_only": 0,
+   "diff": 0.09375,
+   "bootstrap95": [
+    0.0,
+    0.21875
+   ],
+   "newcombe95": [
+    -0.004693522334867681,
+    0.18636605383679328
+   ],
+   "mcnemar_p": 0.25
+  }
+ },
+ "repeats_run1": {
+  "repeat_rate": {
+   "label": "registered",
+   "pooled": {
+    "n": 41,
+    "mean_diff": 0.300677506775068,
+    "ci95": [
+     -4.5026132404181185,
+     5.981649245063878
+    ],
+    "wilcoxon_p": 0.27407831617165357,
+    "trimmed10": -1.1682780182780184,
+    "excluded": [
+     [
+      "modal",
+      "rich_4079",
+      "y"
+     ],
+     [
+      "kaggle",
+      "fastapi_14361",
+      "x"
+     ],
+     [
+      "kaggle",
+      "fastapi_5624",
+      "y"
+     ],
+     [
+      "kaggle",
+      "fastapi_9555",
+      "y"
+     ],
+     [
+      "kaggle",
+      "rich_3061",
+      "x"
+     ],
+     [
+      "kaggle",
+      "rich_3506",
+      "x"
+     ],
+     [
+      "kaggle",
+      "rich_3772",
+      "x"
+     ]
+    ]
+   },
+   "modal": {
+    "n": 15,
+    "mean_diff": 8.53888888888889,
+    "ci95": [
+     -0.7388888888888889,
+     22.480000000000004
+    ],
+    "wilcoxon_p": 0.281005859375,
+    "trimmed10": 3.5141025641025645,
+    "excluded": [
+     [
+      "modal",
+      "rich_4079",
+      "y"
+     ]
+    ]
+   },
+   "kaggle": {
+    "n": 26,
+    "mean_diff": -4.452136752136752,
+    "ci95": [
+     -9.339499389499387,
+     -1.2213675213675212
+    ],
+    "wilcoxon_p": 0.018886089324951172,
+    "trimmed10": -2.3857142857142857,
+    "excluded": [
+     [
+      "kaggle",
+      "fastapi_14361",
+      "x"
+     ],
+     [
+      "kaggle",
+      "fastapi_5624",
+      "y"
+     ],
+     [
+      "kaggle",
+      "fastapi_9555",
+      "y"
+     ],
+     [
+      "kaggle",
+      "rich_3061",
+      "x"
+     ],
+     [
+      "kaggle",
+      "rich_3506",
+      "x"
+     ],
+     [
+      "kaggle",
+      "rich_3772",
+      "x"
+     ]
+    ]
+   }
+  },
+  "repeat_rate_posthoc": {
+   "label": "post-hoc",
+   "pooled": {
+    "n": 41,
+    "mean_diff": -1.3544521873790165,
+    "ci95": [
+     -2.459485094850949,
+     -0.33250096786682154
+    ],
+    "wilcoxon_p": 0.2330531511688605,
+    "trimmed10": -0.8292688792688793,
+    "excluded": [
+     [
+      "modal",
+      "rich_4079",
+      "y"
+     ],
+     [
+      "kaggle",
+      "fastapi_14361",
+      "x"
+     ],
+     [
+      "kaggle",
+      "fastapi_5624",
+      "y"
+     ],
+     [
+      "kaggle",
+      "fastapi_9555",
+      "y"
+     ],
+     [
+      "kaggle",
+      "rich_3061",
+      "x"
+     ],
+     [
+      "kaggle",
+      "rich_3506",
+      "x"
+     ],
+     [
+      "kaggle",
+      "rich_3772",
+      "x"
+     ]
+    ]
+   },
+   "modal": {
+    "n": 15,
+    "mean_diff": 0.2122222222222222,
+    "ci95": [
+     -1.1500000000000001,
+     1.392222222222222
+    ],
+    "wilcoxon_p": 0.2509765625,
+    "trimmed10": 0.3987179487179487,
+    "excluded": [
+     [
+      "modal",
+      "rich_4079",
+      "y"
+     ]
+    ]
+   },
+   "kaggle": {
+    "n": 26,
+    "mean_diff": -2.2583028083028083,
+    "ci95": [
+     -3.8064407814407817,
+     -0.8400183150183149
+    ],
+    "wilcoxon_p": 0.029312610626220703,
+    "trimmed10": -1.8734487734487735,
+    "excluded": [
+     [
+      "kaggle",
+      "fastapi_14361",
+      "x"
+     ],
+     [
+      "kaggle",
+      "fastapi_5624",
+      "y"
+     ],
+     [
+      "kaggle",
+      "fastapi_9555",
+      "y"
+     ],
+     [
+      "kaggle",
+      "rich_3061",
+      "x"
+     ],
+     [
+      "kaggle",
+      "rich_3506",
+      "x"
+     ],
+     [
+      "kaggle",
+      "rich_3772",
+      "x"
+     ]
+    ]
+   }
+  },
+  "repeats_after_compaction": {
+   "label": "post-hoc (a) raw, registered steps",
+   "pooled": {
+    "n": 48,
+    "mean_diff": 8.125,
+    "ci95": [
+     -17.958333333333332,
+     35.916666666666664
+    ],
+    "wilcoxon_p": 0.5423946445807815,
+    "trimmed10": -0.575,
+    "excluded": []
+   },
+   "modal": {
+    "n": 16,
+    "mean_diff": 52.4375,
+    "ci95": [
+     -1.6875,
+     131.3125
+    ],
+    "wilcoxon_p": 0.23583984375,
+    "trimmed10": 29.428571428571427,
+    "excluded": []
+   },
+   "kaggle": {
+    "n": 32,
+    "mean_diff": -14.03125,
+    "ci95": [
+     -39.96875,
+     0.1875
+    ],
+    "wilcoxon_p": 0.10838949680328369,
+    "trimmed10": -1.6923076923076923,
+    "excluded": []
+   }
+  },
+  "repeats_after_compaction_posthoc": {
+   "label": "post-hoc (a) raw, no post-submit submits",
+   "pooled": {
+    "n": 48,
+    "mean_diff": -0.9791666666666666,
+    "ci95": [
+     -3.1666666666666665,
+     1.0208333333333333
+    ],
+    "wilcoxon_p": 0.5256008111173287,
+    "trimmed10": -0.525,
+    "excluded": []
+   },
+   "modal": {
+    "n": 16,
+    "mean_diff": 0.9375,
+    "ci95": [
+     -2.75,
+     4.125
+    ],
+    "wilcoxon_p": 0.15673828125,
+    "trimmed10": 1.6428571428571428,
+    "excluded": []
+   },
+   "kaggle": {
+    "n": 32,
+    "mean_diff": -1.9375,
+    "ci95": [
+     -4.71875,
+     0.4375
+    ],
+    "wilcoxon_p": 0.10854530334472656,
+    "trimmed10": -1.5,
+    "excluded": []
+   }
+  },
+  "repeats_per_call_after_compaction": {
+   "label": "post-hoc (b) per call, registered steps",
+   "pooled": {
+    "n": 33,
+    "mean_diff": -0.07396515849397557,
+    "ci95": [
+     -0.17088276091673288,
+     0.021968186376772218
+    ],
+    "wilcoxon_p": 0.059545967262238264,
+    "trimmed10": -0.07862026249679782,
+    "excluded": [
+     [
+      "modal",
+      "requests_7205",
+      "y"
+     ],
+     [
+      "modal",
+      "requests_7309",
+      "y"
+     ],
+     [
+      "modal",
+      "requests_7315",
+      "y"
+     ],
+     [
+      "modal",
+      "requests_7427",
+      "y"
+     ],
+     [
+      "modal",
+      "rich_4079",
+      "y"
+     ],
+     [
+      "kaggle",
+      "fastapi_14361",
+      "x"
+     ],
+     [
+      "kaggle",
+      "fastapi_14964",
+      "y"
+     ],
+     [
+      "kaggle",
+      "fastapi_5624",
+      "y"
+     ],
+     [
+      "kaggle",
+      "fastapi_9555",
+      "y"
+     ],
+     [
+      "kaggle",
+      "rich_3006",
+      "y"
+     ],
+     [
+      "kaggle",
+      "rich_3061",
+      "x"
+     ],
+     [
+      "kaggle",
+      "rich_3506",
+      "x"
+     ],
+     [
+      "kaggle",
+      "rich_3518",
+      "y"
+     ],
+     [
+      "kaggle",
+      "rich_3772",
+      "x"
+     ],
+     [
+      "kaggle",
+      "rich_4006",
+      "y"
+     ]
+    ]
+   },
+   "modal": {
+    "n": 11,
+    "mean_diff": 0.029786802021739927,
+    "ci95": [
+     -0.15341201594903303,
+     0.24684759608976056
+    ],
+    "wilcoxon_p": 1.0,
+    "trimmed10": -0.012760575306762311,
+    "excluded": [
+     [
+      "modal",
+      "requests_7205",
+      "y"
+     ],
+     [
+      "modal",
+      "requests_7309",
+      "y"
+     ],
+     [
+      "modal",
+      "requests_7315",
+      "y"
+     ],
+     [
+      "modal",
+      "requests_7427",
+      "y"
+     ],
+     [
+      "modal",
+      "rich_4079",
+      "y"
+     ]
+    ]
+   },
+   "kaggle": {
+    "n": 22,
+    "mean_diff": -0.1258411387518333,
+    "ci95": [
+     -0.2349756830310585,
+     -0.033226611068816664
+    ],
+    "wilcoxon_p": 0.020858287811279297,
+    "trimmed10": -0.09816498560571194,
+    "excluded": [
+     [
+      "kaggle",
+      "fastapi_14361",
+      "x"
+     ],
+     [
+      "kaggle",
+      "fastapi_14964",
+      "y"
+     ],
+     [
+      "kaggle",
+      "fastapi_5624",
+      "y"
+     ],
+     [
+      "kaggle",
+      "fastapi_9555",
+      "y"
+     ],
+     [
+      "kaggle",
+      "rich_3006",
+      "y"
+     ],
+     [
+      "kaggle",
+      "rich_3061",
+      "x"
+     ],
+     [
+      "kaggle",
+      "rich_3506",
+      "x"
+     ],
+     [
+      "kaggle",
+      "rich_3518",
+      "y"
+     ],
+     [
+      "kaggle",
+      "rich_3772",
+      "x"
+     ],
+     [
+      "kaggle",
+      "rich_4006",
+      "y"
+     ]
+    ]
+   }
+  },
+  "repeats_per_call_after_compaction_posthoc": {
+   "label": "post-hoc (b) per call, no post-submit submits",
+   "pooled": {
+    "n": 33,
+    "mean_diff": -0.05751848312953279,
+    "ci95": [
+     -0.12231149068834869,
+     0.004470483100805074
+    ],
+    "wilcoxon_p": 0.13531039096415043,
+    "trimmed10": -0.053314604150576754,
+    "excluded": [
+     [
+      "modal",
+      "requests_7205",
+      "y"
+     ],
+     [
+      "modal",
+      "requests_7309",
+      "y"
+     ],
+     [
+      "modal",
+      "requests_7315",
+      "y"
+     ],
+     [
+      "modal",
+      "requests_7427",
+      "y"
+     ],
+     [
+      "modal",
+      "rich_4079",
+      "y"
+     ],
+     [
+      "kaggle",
+      "fastapi_14361",
+      "x"
+     ],
+     [
+      "kaggle",
+      "fastapi_14964",
+      "y"
+     ],
+     [
+      "kaggle",
+      "fastapi_5624",
+      "y"
+     ],
+     [
+      "kaggle",
+      "fastapi_9555",
+      "y"
+     ],
+     [
+      "kaggle",
+      "rich_3006",
+      "y"
+     ],
+     [
+      "kaggle",
+      "rich_3061",
+      "x"
+     ],
+     [
+      "kaggle",
+      "rich_3506",
+      "x"
+     ],
+     [
+      "kaggle",
+      "rich_3518",
+      "y"
+     ],
+     [
+      "kaggle",
+      "rich_3772",
+      "x"
+     ],
+     [
+      "kaggle",
+      "rich_4006",
+      "y"
+     ]
+    ]
+   },
+   "modal": {
+    "n": 11,
+    "mean_diff": -0.005832156891893424,
+    "ci95": [
+     -0.13340150829845412,
+     0.11098857608866529
+    ],
+    "wilcoxon_p": 0.921875,
+    "trimmed10": 0.005768633640066771,
+    "excluded": [
+     [
+      "modal",
+      "requests_7205",
+      "y"
+     ],
+     [
+      "modal",
+      "requests_7309",
+      "y"
+     ],
+     [
+      "modal",
+      "requests_7315",
+      "y"
+     ],
+     [
+      "modal",
+      "requests_7427",
+      "y"
+     ],
+     [
+      "modal",
+      "rich_4079",
+      "y"
+     ]
+    ]
+   },
+   "kaggle": {
+    "n": 22,
+    "mean_diff": -0.08336164624835248,
+    "ci95": [
+     -0.15512797835192257,
+     -0.014353141545484512
+    ],
+    "wilcoxon_p": 0.042079925537109375,
+    "trimmed10": -0.07717440486408032,
+    "excluded": [
+     [
+      "kaggle",
+      "fastapi_14361",
+      "x"
+     ],
+     [
+      "kaggle",
+      "fastapi_14964",
+      "y"
+     ],
+     [
+      "kaggle",
+      "fastapi_5624",
+      "y"
+     ],
+     [
+      "kaggle",
+      "fastapi_9555",
+      "y"
+     ],
+     [
+      "kaggle",
+      "rich_3006",
+      "y"
+     ],
+     [
+      "kaggle",
+      "rich_3061",
+      "x"
+     ],
+     [
+      "kaggle",
+      "rich_3506",
+      "x"
+     ],
+     [
+      "kaggle",
+      "rich_3518",
+      "y"
+     ],
+     [
+      "kaggle",
+      "rich_3772",
+      "x"
+     ],
+     [
+      "kaggle",
+      "rich_4006",
+      "y"
+     ]
+    ]
+   }
+  },
+  "compactions": {
+   "label": "post-hoc (c) compactions per task",
+   "pooled": {
+    "n": 48,
+    "mean_diff": 0.5833333333333334,
+    "ci95": [
+     -0.020833333333333332,
+     1.2083333333333333
+    ],
+    "wilcoxon_p": 0.09005896224698517,
+    "trimmed10": 0.5,
+    "excluded": []
+   },
+   "modal": {
+    "n": 16,
+    "mean_diff": 1.375,
+    "ci95": [
+     0.3125,
+     2.6875
+    ],
+    "wilcoxon_p": 0.03173828125,
+    "trimmed10": 1.0714285714285714,
+    "excluded": []
+   },
+   "kaggle": {
+    "n": 32,
+    "mean_diff": 0.1875,
+    "ci95": [
+     -0.5625,
+     0.90625
+    ],
+    "wilcoxon_p": 0.547609806060791,
+    "trimmed10": 0.23076923076923078,
+    "excluded": []
+   }
+  }
+ },
+ "hypotheses_run1": {
+  "modal": {
+   "role": "discovery (post-hoc there)",
+   "H-a_more_fewer_equal": [
+    8,
+    2,
+    6
+   ],
+   "H-a_p_one_sided": 0.05859375,
+   "H-b_leaks_recap_none": [
+    6,
+    0,
+    16
+   ],
+   "H-b_fisher_p_one_sided": 0.008836979359782475
+  },
+  "kaggle": {
+   "role": "replication (pre-registered)",
+   "H-a_more_fewer_equal": [
+    17,
+    11,
+    4
+   ],
+   "H-a_p_one_sided": 0.16171182692050934,
+   "H-b_leaks_recap_none": [
+    5,
+    5,
+    32
+   ],
+   "H-b_fisher_p_one_sided": 0.6338596181023171
+  }
+ },
+ "per_protocol_run1": {
+  "plumbing_failed": {
+   "modal": 11,
+   "kaggle": 11
+  },
+  "resolve": {
+   "pooled": {
+    "pairs": 26,
+    "x_resolved": 13,
+    "y_resolved": 11,
+    "x_only": 2,
+    "y_only": 0,
+    "diff": 0.07692307692307693,
+    "bootstrap95": [
+     0.0,
+     0.19230769230769232
+    ],
+    "newcombe95": [
+     -0.021693605074041472,
+     0.1706149595128743
+    ],
+    "mcnemar_p": 0.5
+   },
+   "modal": {
+    "pairs": 5,
+    "x_resolved": 4,
+    "y_resolved": 3,
+    "x_only": 1,
+    "y_only": 0,
+    "diff": 0.2,
+    "bootstrap95": [
+     0.0,
+     0.6
+    ],
+    "newcombe95": [
+     -0.13631935814883883,
+     0.49852372816599533
+    ],
+    "mcnemar_p": 1.0
+   },
+   "kaggle": {
+    "pairs": 21,
+    "x_resolved": 9,
+    "y_resolved": 8,
+    "x_only": 1,
+    "y_only": 0,
+    "diff": 0.047619047619047616,
+    "bootstrap95": [
+     0.0,
+     0.14285714285714285
+    ],
+    "newcombe95": [
+     -0.04170323932040676,
+     0.13585855378444514
+    ],
+    "mcnemar_p": 1.0
+   }
+  },
+  "repeat_rate": {
+   "pooled": {
+    "n": 21,
+    "mean_diff": 0.606916099773243,
+    "ci95": [
+     -8.13548752834467,
+     10.236281179138324
+    ],
+    "wilcoxon_p": 0.7465362548828125,
+    "trimmed10": -0.768767507002801,
+    "excluded": [
+     [
+      "kaggle",
+      "fastapi_14361",
+      "x"
+     ],
+     [
+      "kaggle",
+      "fastapi_9555",
+      "y"
+     ],
+     [
+      "kaggle",
+      "rich_3061",
+      "x"
+     ],
+     [
+      "kaggle",
+      "rich_3506",
+      "x"
+     ],
+     [
+      "kaggle",
+      "rich_3772",
+      "x"
+     ]
+    ]
+   },
+   "modal": {
+    "n": 5,
+    "mean_diff": 17.14666666666667,
+    "ci95": [
+     -3.6333333333333337,
+     53.90666666666667
+    ],
+    "wilcoxon_p": 0.4375,
+    "trimmed10": 17.14666666666667,
+    "excluded": []
+   },
+   "kaggle": {
+    "n": 16,
+    "mean_diff": -4.5617559523809526,
+    "ci95": [
+     -12.081845238095237,
+     0.021875000000000033
+    ],
+    "wilcoxon_p": 0.2744140625,
+    "trimmed10": -1.4215986394557822,
+    "excluded": [
+     [
+      "kaggle",
+      "fastapi_14361",
+      "x"
+     ],
+     [
+      "kaggle",
+      "fastapi_9555",
+      "y"
+     ],
+     [
+      "kaggle",
+      "rich_3061",
+      "x"
+     ],
+     [
+      "kaggle",
+      "rich_3506",
+      "x"
+     ],
+     [
+      "kaggle",
+      "rich_3772",
+      "x"
+     ]
+    ]
+   }
+  },
+  "repeat_rate_posthoc": {
+   "pooled": {
+    "n": 21,
+    "mean_diff": -0.896485260770975,
+    "ci95": [
+     -2.3609977324263034,
+     0.3004535147392291
+    ],
+    "wilcoxon_p": 0.7117462158203125,
+    "trimmed10": -0.38389355742296916,
+    "excluded": [
+     [
+      "kaggle",
+      "fastapi_14361",
+      "x"
+     ],
+     [
+      "kaggle",
+      "fastapi_9555",
+      "y"
+     ],
+     [
+      "kaggle",
+      "rich_3061",
+      "x"
+     ],
+     [
+      "kaggle",
+      "rich_3506",
+      "x"
+     ],
+     [
+      "kaggle",
+      "rich_3772",
+      "x"
+     ]
+    ]
+   },
+   "modal": {
+    "n": 5,
+    "mean_diff": -0.45333333333333337,
+    "ci95": [
+     -3.753333333333334,
+     1.5333333333333332
+    ],
+    "wilcoxon_p": 0.625,
+    "trimmed10": -0.4533333333333333,
+    "excluded": []
+   },
+   "kaggle": {
+    "n": 16,
+    "mean_diff": -1.0349702380952381,
+    "ci95": [
+     -2.6830357142857144,
+     0.27500000000000013
+    ],
+    "wilcoxon_p": 0.39111328125,
+    "trimmed10": -0.6613945578231293,
+    "excluded": [
+     [
+      "kaggle",
+      "fastapi_14361",
+      "x"
+     ],
+     [
+      "kaggle",
+      "fastapi_9555",
+      "y"
+     ],
+     [
+      "kaggle",
+      "rich_3061",
+      "x"
+     ],
+     [
+      "kaggle",
+      "rich_3506",
+      "x"
+     ],
+     [
+      "kaggle",
+      "rich_3772",
+      "x"
+     ]
+    ]
+   }
+  }
+ },
+ "aa_calibration": {
+  "modal": {
+   "resolve": {
+    "pairs": 16,
+    "x_resolved": 12,
+    "y_resolved": 11,
+    "x_only": 2,
+    "y_only": 1,
+    "diff": 0.0625,
+    "bootstrap95": [
+     -0.125,
+     0.25
+    ],
+    "newcombe95": [
+     -0.14627890328552293,
+     0.2672189112050156
+    ],
+    "mcnemar_p": 1.0
+   },
+   "repeat_rate": {
+    "n": 14,
+    "mean_diff": 0.2714285714285714,
+    "ci95": [
+     -1.2428571428571427,
+     1.5785714285714287
+    ],
+    "wilcoxon_p": 0.5087890625,
+    "trimmed10": 0.48333333333333334,
+    "excluded": [
+     [
+      "modal",
+      "requests_7205",
+      "x"
+     ],
+     [
+      "modal",
+      "rich_4079",
+      "y"
+     ]
+    ]
+   },
+   "H-a_p_one_sided_run2_gt_run1": 0.1875,
+   "H-b_leaks_run1_run2": [
+    0,
+    0
+   ],
+   "H-b_p_one_sided_run2_gt_run1": 1.0
+  },
+  "kaggle": {
+   "resolve": {
+    "pairs": 32,
+    "x_resolved": 16,
+    "y_resolved": 14,
+    "x_only": 4,
+    "y_only": 2,
+    "diff": 0.0625,
+    "bootstrap95": [
+     -0.09375,
+     0.21875
+    ],
+    "newcombe95": [
+     -0.08080003717807008,
+     0.20013173777413804
+    ],
+    "mcnemar_p": 0.6875
+   },
+   "repeat_rate": {
+    "n": 26,
+    "mean_diff": -1.969139194139194,
+    "ci95": [
+     -7.382967032967034,
+     2.701831501831502
+    ],
+    "wilcoxon_p": 0.2721017599105835,
+    "trimmed10": -1.125,
+    "excluded": [
+     [
+      "kaggle",
+      "fastapi_14361",
+      "x"
+     ],
+     [
+      "kaggle",
+      "fastapi_5624",
+      "y"
+     ],
+     [
+      "kaggle",
+      "fastapi_9555",
+      "y"
+     ],
+     [
+      "kaggle",
+      "rich_2725",
+      "x"
+     ],
+     [
+      "kaggle",
+      "rich_3043",
+      "x"
+     ],
+     [
+      "kaggle",
+      "rich_4006",
+      "x"
+     ]
+    ]
+   },
+   "H-a_p_one_sided_run2_gt_run1": 0.3999444842338562,
+   "H-b_leaks_run1_run2": [
+    5,
+    3
+   ],
+   "H-b_p_one_sided_run2_gt_run1": 0.8717406882028634
+  }
+ },
+ "descriptive_run1": {
+  "modal/none": {
+   "n": 16,
+   "resolved": 11,
+   "overflow": 1,
+   "overflow_before_first_compaction": 1,
+   "cap_calls": 1,
+   "cap_time": 0,
+   "cap_turns": 0,
+   "submit_loops": 0,
+   "compactions": 23,
+   "notes_written": null,
+   "runs_with_note": null
+  },
+  "modal/recap": {
+   "n": 16,
+   "resolved": 12,
+   "overflow": 0,
+   "overflow_before_first_compaction": 0,
+   "cap_calls": 1,
+   "cap_time": 0,
+   "cap_turns": 0,
+   "submit_loops": 2,
+   "compactions": 45,
+   "notes_written": 2,
+   "runs_with_note": 2
+  },
+  "kaggle/none": {
+   "n": 32,
+   "resolved": 14,
+   "overflow": 5,
+   "overflow_before_first_compaction": 2,
+   "cap_calls": 2,
+   "cap_time": 0,
+   "cap_turns": 0,
+   "submit_loops": 1,
+   "compactions": 71,
+   "notes_written": null,
+   "runs_with_note": null
+  },
+  "kaggle/recap": {
+   "n": 32,
+   "resolved": 17,
+   "overflow": 7,
+   "overflow_before_first_compaction": 3,
+   "cap_calls": 0,
+   "cap_time": 0,
+   "cap_turns": 0,
+   "submit_loops": 0,
+   "compactions": 77,
+   "notes_written": 5,
+   "runs_with_note": 4
+  }
+ },
+ "posthoc_tests": {
+  "count": 23,
+  "tests": [
+   {
+    "test": "Wilcoxon signed-rank, recap - none, post-hoc",
+    "stratum": "pooled",
+    "p": 0.2330531511688605
+   },
+   {
+    "test": "Wilcoxon signed-rank, recap - none, post-hoc",
+    "stratum": "modal",
+    "p": 0.2509765625
+   },
+   {
+    "test": "Wilcoxon signed-rank, recap - none, post-hoc",
+    "stratum": "kaggle",
+    "p": 0.029312610626220703
+   },
+   {
+    "test": "Wilcoxon signed-rank, recap - none, post-hoc (a) raw, registered steps",
+    "stratum": "pooled",
+    "p": 0.5423946445807815
+   },
+   {
+    "test": "Wilcoxon signed-rank, recap - none, post-hoc (a) raw, registered steps",
+    "stratum": "modal",
+    "p": 0.23583984375
+   },
+   {
+    "test": "Wilcoxon signed-rank, recap - none, post-hoc (a) raw, registered steps",
+    "stratum": "kaggle",
+    "p": 0.10838949680328369
+   },
+   {
+    "test": "Wilcoxon signed-rank, recap - none, post-hoc (a) raw, no post-submit submits",
+    "stratum": "pooled",
+    "p": 0.5256008111173287
+   },
+   {
+    "test": "Wilcoxon signed-rank, recap - none, post-hoc (a) raw, no post-submit submits",
+    "stratum": "modal",
+    "p": 0.15673828125
+   },
+   {
+    "test": "Wilcoxon signed-rank, recap - none, post-hoc (a) raw, no post-submit submits",
+    "stratum": "kaggle",
+    "p": 0.10854530334472656
+   },
+   {
+    "test": "Wilcoxon signed-rank, recap - none, post-hoc (b) per call, registered steps",
+    "stratum": "pooled",
+    "p": 0.059545967262238264
+   },
+   {
+    "test": "Wilcoxon signed-rank, recap - none, post-hoc (b) per call, registered steps",
+    "stratum": "modal",
+    "p": 1.0
+   },
+   {
+    "test": "Wilcoxon signed-rank, recap - none, post-hoc (b) per call, registered steps",
+    "stratum": "kaggle",
+    "p": 0.020858287811279297
+   },
+   {
+    "test": "Wilcoxon signed-rank, recap - none, post-hoc (b) per call, no post-submit submits",
+    "stratum": "pooled",
+    "p": 0.13531039096415043
+   },
+   {
+    "test": "Wilcoxon signed-rank, recap - none, post-hoc (b) per call, no post-submit submits",
+    "stratum": "modal",
+    "p": 0.921875
+   },
+   {
+    "test": "Wilcoxon signed-rank, recap - none, post-hoc (b) per call, no post-submit submits",
+    "stratum": "kaggle",
+    "p": 0.042079925537109375
+   },
+   {
+    "test": "Wilcoxon signed-rank, recap - none, post-hoc (c) compactions per task",
+    "stratum": "pooled",
+    "p": 0.09005896224698517
+   },
+   {
+    "test": "Wilcoxon signed-rank, recap - none, post-hoc (c) compactions per task",
+    "stratum": "modal",
+    "p": 0.03173828125
+   },
+   {
+    "test": "Wilcoxon signed-rank, recap - none, post-hoc (c) compactions per task",
+    "stratum": "kaggle",
+    "p": 0.547609806060791
+   },
+   {
+    "test": "Wilcoxon, per-protocol, repeat rate post-hoc variant",
+    "stratum": "pooled",
+    "p": 0.7117462158203125
+   },
+   {
+    "test": "Wilcoxon, per-protocol, repeat rate post-hoc variant",
+    "stratum": "modal",
+    "p": 0.625
+   },
+   {
+    "test": "Wilcoxon, per-protocol, repeat rate post-hoc variant",
+    "stratum": "kaggle",
+    "p": 0.39111328125
+   },
+   {
+    "test": "H-a one-sided Wilcoxon (Modal discovery, post-hoc there)",
+    "stratum": "modal",
+    "p": 0.05859375
+   },
+   {
+    "test": "H-b one-sided Fisher (Modal discovery, post-hoc there)",
+    "stratum": "modal",
+    "p": 0.008836979359782475
+   }
+  ]
+ }
+}

@@ -1,0 +1,104 @@
+{
+ "kaggle_32": {
+  "n": 32,
+  "resolved_run1": 14,
+  "resolved_run2": 16,
+  "resolve_diff_mean": 0.0625,
+  "resolve_ci": [
+   -0.094,
+   0.219
+  ],
+  "mcnemar": {
+   "n": 32,
+   "b": 4,
+   "c": 2,
+   "p": 0.6875
+  },
+  "H-a run2>run1 more/fewer/equal": [
+   13,
+   11,
+   8
+  ],
+  "H-a one-sided p (run2>run1)": 0.4,
+  "H-a one-sided p (run1>run2)": 0.609,
+  "H-b leaks run1/run2": [
+   5,
+   3
+  ],
+  "H-b Fisher one-sided p (run2>run1)": 0.872,
+  "H-b Fisher one-sided p (run1>run2)": 0.354,
+  "repeat_rate_paired_n": 26,
+  "repeat_rate_diff_mean": -1.97,
+  "repeat_rate_ci": [
+   -7.38,
+   2.7
+  ],
+  "repeat_rate_wilcoxon_p": 0.272,
+  "repeat_rate_trimmed10": -1.12,
+  "cap_hits_run1": {
+   "calls": 2,
+   "time": 0,
+   "turns": 0
+  },
+  "cap_hits_run2": {
+   "calls": 4,
+   "time": 0,
+   "turns": 0
+  },
+  "overflow_run1_run2": [
+   5,
+   4
+  ]
+ },
+ "modal_16": {
+  "n": 16,
+  "resolved_run1": 11,
+  "resolved_run2": 12,
+  "resolve_diff_mean": 0.0625,
+  "resolve_ci": [
+   -0.125,
+   0.25
+  ],
+  "mcnemar": {
+   "n": 16,
+   "b": 2,
+   "c": 1,
+   "p": 1.0
+  },
+  "H-a run2>run1 more/fewer/equal": [
+   6,
+   2,
+   8
+  ],
+  "H-a one-sided p (run2>run1)": 0.188,
+  "H-a one-sided p (run1>run2)": 0.875,
+  "H-b leaks run1/run2": [
+   0,
+   0
+  ],
+  "H-b Fisher one-sided p (run2>run1)": 1.0,
+  "H-b Fisher one-sided p (run1>run2)": 1.0,
+  "repeat_rate_paired_n": 14,
+  "repeat_rate_diff_mean": 0.27,
+  "repeat_rate_ci": [
+   -1.24,
+   1.58
+  ],
+  "repeat_rate_wilcoxon_p": 0.509,
+  "repeat_rate_trimmed10": 0.48,
+  "cap_hits_run1": {
+   "calls": 1,
+   "time": 0,
+   "turns": 0
+  },
+  "cap_hits_run2": {
+   "calls": 1,
+   "time": 0,
+   "turns": 0
+  },
+  "overflow_run1_run2": [
+   1,
+   0
+  ]
+ }
+}

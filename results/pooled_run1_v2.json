@@ -1,0 +1,815 @@
+{
+ "resolve": {
+  "pooled": {
+   "pairs": 48,
+   "none_resolved": 25,
+   "recap_resolved": 29,
+   "recap_only": 5,
+   "none_only": 1,
+   "both": 24,
+   "neither": 18,
+   "diff": 0.0833,
+   "bootstrap95_stratified": [
+    0.0,
+    0.1875
+   ],
+   "newcombe95": [
+    -0.0126,
+    0.1754
+   ],
+   "mcnemar_exact": {
+    "n": 48,
+    "b": 5,
+    "c": 1,
+    "p": 0.21875
+   }
+  },
+  "modal": {
+   "pairs": 16,
+   "none_resolved": 11,
+   "recap_resolved": 12,
+   "recap_only": 2,
+   "none_only": 1,
+   "both": 10,
+   "neither": 3,
+   "diff": 0.0625,
+   "bootstrap95": [
+    -0.125,
+    0.25
+   ],
+   "newcombe95": [
+    -0.1463,
+    0.2672
+   ],
+   "mcnemar_exact": {
+    "n": 16,
+    "b": 2,
+    "c": 1,
+    "p": 1.0
+   }
+  },
+  "kaggle": {
+   "pairs": 32,
+   "none_resolved": 14,
+   "recap_resolved": 17,
+   "recap_only": 3,
+   "none_only": 0,
+   "both": 14,
+   "neither": 15,
+   "diff": 0.0938,
+   "bootstrap95": [
+    0.0,
+    0.2188
+   ],
+   "newcombe95": [
+    -0.0047,
+    0.1864
+   ],
+   "mcnemar_exact": {
+    "n": 32,
+    "b": 3,
+    "c": 0,
+    "p": 0.25
+   }
+  }
+ },
+ "rate_reg": {
+  "pooled": {
+   "n": 41,
+   "mean_recap": 4.144,
+   "mean_none": 3.807,
+   "mean_paired_diff": 0.301,
+   "ci95": [
+    -4.503,
+    5.982
+   ],
+   "wilcoxon_p": 0.2741,
+   "trimmed10": -1.168,
+   "excluded": [
+    [
+     "modal",
+     "rich_4079",
+     "none"
+    ],
+    [
+     "kaggle",
+     "fastapi_14361",
+     "recap"
+    ],
+    [
+     "kaggle",
+     "fastapi_5624",
+     "none"
+    ],
+    [
+     "kaggle",
+     "fastapi_9555",
+     "none"
+    ],
+    [
+     "kaggle",
+     "rich_3061",
+     "recap"
+    ],
+    [
+     "kaggle",
+     "rich_3506",
+     "recap"
+    ],
+    [
+     "kaggle",
+     "rich_3772",
+     "recap"
+    ]
+   ]
+  },
+  "modal": {
+   "n": 15,
+   "mean_recap": 9.245,
+   "mean_none": 1.289,
+   "mean_paired_diff": 8.539,
+   "ci95": [
+    -0.739,
+    22.48
+   ],
+   "wilcoxon_p": 0.281,
+   "trimmed10": 3.514,
+   "excluded": [
+    [
+     "modal",
+     "rich_4079",
+     "none"
+    ]
+   ]
+  },
+  "kaggle": {
+   "n": 26,
+   "mean_recap": 1.229,
+   "mean_none": 5.067,
+   "mean_paired_diff": -4.452,
+   "ci95": [
+    -9.339,
+    -1.221
+   ],
+   "wilcoxon_p": 0.0189,
+   "trimmed10": -2.386,
+   "excluded": [
+    [
+     "kaggle",
+     "fastapi_14361",
+     "recap"
+    ],
+    [
+     "kaggle",
+     "fastapi_5624",
+     "none"
+    ],
+    [
+     "kaggle",
+     "fastapi_9555",
+     "none"
+    ],
+    [
+     "kaggle",
+     "rich_3061",
+     "recap"
+    ],
+    [
+     "kaggle",
+     "rich_3506",
+     "recap"
+    ],
+    [
+     "kaggle",
+     "rich_3772",
+     "recap"
+    ]
+   ]
+  }
+ },
+ "rate_ph": {
+  "pooled": {
+   "n": 41,
+   "mean_recap": 1.149,
+   "mean_none": 2.376,
+   "mean_paired_diff": -1.354,
+   "ci95": [
+    -2.459,
+    -0.333
+   ],
+   "wilcoxon_p": 0.2331,
+   "trimmed10": -0.829,
+   "excluded": [
+    [
+     "modal",
+     "rich_4079",
+     "none"
+    ],
+    [
+     "kaggle",
+     "fastapi_14361",
+     "recap"
+    ],
+    [
+     "kaggle",
+     "fastapi_5624",
+     "none"
+    ],
+    [
+     "kaggle",
+     "fastapi_9555",
+     "none"
+    ],
+    [
+     "kaggle",
+     "rich_3061",
+     "recap"
+    ],
+    [
+     "kaggle",
+     "rich_3506",
+     "recap"
+    ],
+    [
+     "kaggle",
+     "rich_3772",
+     "recap"
+    ]
+   ]
+  },
+  "modal": {
+   "n": 15,
+   "mean_recap": 1.126,
+   "mean_none": 0.956,
+   "mean_paired_diff": 0.212,
+   "ci95": [
+    -1.15,
+    1.392
+   ],
+   "wilcoxon_p": 0.251,
+   "trimmed10": 0.399,
+   "excluded": [
+    [
+     "modal",
+     "rich_4079",
+     "none"
+    ]
+   ]
+  },
+  "kaggle": {
+   "n": 26,
+   "mean_recap": 1.161,
+   "mean_none": 3.086,
+   "mean_paired_diff": -2.258,
+   "ci95": [
+    -3.806,
+    -0.84
+   ],
+   "wilcoxon_p": 0.0293,
+   "trimmed10": -1.873,
+   "excluded": [
+    [
+     "kaggle",
+     "fastapi_14361",
+     "recap"
+    ],
+    [
+     "kaggle",
+     "fastapi_5624",
+     "none"
+    ],
+    [
+     "kaggle",
+     "fastapi_9555",
+     "none"
+    ],
+    [
+     "kaggle",
+     "rich_3061",
+     "recap"
+    ],
+    [
+     "kaggle",
+     "rich_3506",
+     "recap"
+    ],
+    [
+     "kaggle",
+     "rich_3772",
+     "recap"
+    ]
+   ]
+  }
+ },
+ "raw_reg": {
+  "pooled": {
+   "n": 48,
+   "mean_recap": 20.938,
+   "mean_none": 12.812,
+   "mean_paired_diff": 8.125,
+   "ci95": [
+    -17.958,
+    35.917
+   ],
+   "wilcoxon_p": 0.5424,
+   "trimmed10": -0.575,
+   "excluded": []
+  },
+  "modal": {
+   "n": 16,
+   "mean_recap": 54.938,
+   "mean_none": 2.5,
+   "mean_paired_diff": 52.438,
+   "ci95": [
+    -1.688,
+    131.312
+   ],
+   "wilcoxon_p": 0.2358,
+   "trimmed10": 29.429,
+   "excluded": []
+  },
+  "kaggle": {
+   "n": 32,
+   "mean_recap": 3.938,
+   "mean_none": 17.969,
+   "mean_paired_diff": -14.031,
+   "ci95": [
+    -39.969,
+    0.188
+   ],
+   "wilcoxon_p": 0.1084,
+   "trimmed10": -1.692,
+   "excluded": []
+  }
+ },
+ "raw_ph": {
+  "pooled": {
+   "n": 48,
+   "mean_recap": 3.521,
+   "mean_none": 4.5,
+   "mean_paired_diff": -0.979,
+   "ci95": [
+    -3.167,
+    1.021
+   ],
+   "wilcoxon_p": 0.5256,
+   "trimmed10": -0.525,
+   "excluded": []
+  },
+  "modal": {
+   "n": 16,
+   "mean_recap": 3.125,
+   "mean_none": 2.188,
+   "mean_paired_diff": 0.938,
+   "ci95": [
+    -2.75,
+    4.125
+   ],
+   "wilcoxon_p": 0.1567,
+   "trimmed10": 1.643,
+   "excluded": []
+  },
+  "kaggle": {
+   "n": 32,
+   "mean_recap": 3.719,
+   "mean_none": 5.656,
+   "mean_paired_diff": -1.938,
+   "ci95": [
+    -4.719,
+    0.438
+   ],
+   "wilcoxon_p": 0.1085,
+   "trimmed10": -1.5,
+   "excluded": []
+  }
+ },
+ "per_call_reg": {
+  "pooled": {
+   "n": 33,
+   "mean_recap": 0.161,
+   "mean_none": 0.211,
+   "mean_paired_diff": -0.074,
+   "ci95": [
+    -0.171,
+    0.022
+   ],
+   "wilcoxon_p": 0.0595,
+   "trimmed10": -0.079,
+   "excluded": [
+    [
+     "modal",
+     "requests_7205",
+     "none"
+    ],
+    [
+     "modal",
+     "requests_7309",
+     "none"
+    ],
+    [
+     "modal",
+     "requests_7315",
+     "none"
+    ],
+    [
+     "modal",
+     "requests_7427",
+     "none"
+    ],
+    [
+     "modal",
+     "rich_4079",
+     "none"
+    ],
+    [
+     "kaggle",
+     "fastapi_14361",
+     "recap"
+    ],
+    [
+     "kaggle",
+     "fastapi_14964",
+     "none"
+    ],
+    [
+     "kaggle",
+     "fastapi_5624",
+     "none"
+    ],
+    [
+     "kaggle",
+     "fastapi_9555",
+     "none"
+    ],
+    [
+     "kaggle",
+     "rich_3006",
+     "none"
+    ],
+    [
+     "kaggle",
+     "rich_3061",
+     "recap"
+    ],
+    [
+     "kaggle",
+     "rich_3506",
+     "recap"
+    ],
+    [
+     "kaggle",
+     "rich_3518",
+     "none"
+    ],
+    [
+     "kaggle",
+     "rich_3772",
+     "recap"
+    ],
+    [
+     "kaggle",
+     "rich_4006",
+     "none"
+    ]
+   ]
+  },
+  "modal": {
+   "n": 11,
+   "mean_recap": 0.235,
+   "mean_none": 0.163,
+   "mean_paired_diff": 0.03,
+   "ci95": [
+    -0.153,
+    0.247
+   ],
+   "wilcoxon_p": 1.0,
+   "trimmed10": -0.013,
+   "excluded": [
+    [
+     "modal",
+     "requests_7205",
+     "none"
+    ],
+    [
+     "modal",
+     "requests_7309",
+     "none"
+    ],
+    [
+     "modal",
+     "requests_7315",
+     "none"
+    ],
+    [
+     "modal",
+     "requests_7427",
+     "none"
+    ],
+    [
+     "modal",
+     "rich_4079",
+     "none"
+    ]
+   ]
+  },
+  "kaggle": {
+   "n": 22,
+   "mean_recap": 0.119,
+   "mean_none": 0.232,
+   "mean_paired_diff": -0.126,
+   "ci95": [
+    -0.235,
+    -0.033
+   ],
+   "wilcoxon_p": 0.0209,
+   "trimmed10": -0.098,
+   "excluded": [
+    [
+     "kaggle",
+     "fastapi_14361",
+     "recap"
+    ],
+    [
+     "kaggle",
+     "fastapi_14964",
+     "none"
+    ],
+    [
+     "kaggle",
+     "fastapi_5624",
+     "none"
+    ],
+    [
+     "kaggle",
+     "fastapi_9555",
+     "none"
+    ],
+    [
+     "kaggle",
+     "rich_3006",
+     "none"
+    ],
+    [
+     "kaggle",
+     "rich_3061",
+     "recap"
+    ],
+    [
+     "kaggle",
+     "rich_3506",
+     "recap"
+    ],
+    [
+     "kaggle",
+     "rich_3518",
+     "none"
+    ],
+    [
+     "kaggle",
+     "rich_3772",
+     "recap"
+    ],
+    [
+     "kaggle",
+     "rich_4006",
+     "none"
+    ]
+   ]
+  }
+ },
+ "per_call_ph": {
+  "pooled": {
+   "n": 33,
+   "mean_recap": 0.12,
+   "mean_none": 0.171,
+   "mean_paired_diff": -0.058,
+   "ci95": [
+    -0.122,
+    0.004
+   ],
+   "wilcoxon_p": 0.1353,
+   "trimmed10": -0.053,
+   "excluded": [
+    [
+     "modal",
+     "requests_7205",
+     "none"
+    ],
+    [
+     "modal",
+     "requests_7309",
+     "none"
+    ],
+    [
+     "modal",
+     "requests_7315",
+     "none"
+    ],
+    [
+     "modal",
+     "requests_7427",
+     "none"
+    ],
+    [
+     "modal",
+     "rich_4079",
+     "none"
+    ],
+    [
+     "kaggle",
+     "fastapi_14361",
+     "recap"
+    ],
+    [
+     "kaggle",
+     "fastapi_14964",
+     "none"
+    ],
+    [
+     "kaggle",
+     "fastapi_5624",
+     "none"
+    ],
+    [
+     "kaggle",
+     "fastapi_9555",
+     "none"
+    ],
+    [
+     "kaggle",
+     "rich_3006",
+     "none"
+    ],
+    [
+     "kaggle",
+     "rich_3061",
+     "recap"
+    ],
+    [
+     "kaggle",
+     "rich_3506",
+     "recap"
+    ],
+    [
+     "kaggle",
+     "rich_3518",
+     "none"
+    ],
+    [
+     "kaggle",
+     "rich_3772",
+     "recap"
+    ],
+    [
+     "kaggle",
+     "rich_4006",
+     "none"
+    ]
+   ]
+  },
+  "modal": {
+   "n": 11,
+   "mean_recap": 0.132,
+   "mean_none": 0.127,
+   "mean_paired_diff": -0.006,
+   "ci95": [
+    -0.133,
+    0.111
+   ],
+   "wilcoxon_p": 0.9219,
+   "trimmed10": 0.006,
+   "excluded": [
+    [
+     "modal",
+     "requests_7205",
+     "none"
+    ],
+    [
+     "modal",
+     "requests_7309",
+     "none"
+    ],
+    [
+     "modal",
+     "requests_7315",
+     "none"
+    ],
+    [
+     "modal",
+     "requests_7427",
+     "none"
+    ],
+    [
+     "modal",
+     "rich_4079",
+     "none"
+    ]
+   ]
+  },
+  "kaggle": {
+   "n": 22,
+   "mean_recap": 0.113,
+   "mean_none": 0.189,
+   "mean_paired_diff": -0.083,
+   "ci95": [
+    -0.155,
+    -0.014
+   ],
+   "wilcoxon_p": 0.0421,
+   "trimmed10": -0.077,
+   "excluded": [
+    [
+     "kaggle",
+     "fastapi_14361",
+     "recap"
+    ],
+    [
+     "kaggle",
+     "fastapi_14964",
+     "none"
+    ],
+    [
+     "kaggle",
+     "fastapi_5624",
+     "none"
+    ],
+    [
+     "kaggle",
+     "fastapi_9555",
+     "none"
+    ],
+    [
+     "kaggle",
+     "rich_3006",
+     "none"
+    ],
+    [
+     "kaggle",
+     "rich_3061",
+     "recap"
+    ],
+    [
+     "kaggle",
+     "rich_3506",
+     "recap"
+    ],
+    [
+     "kaggle",
+     "rich_3518",
+     "none"
+    ],
+    [
+     "kaggle",
+     "rich_3772",
+     "recap"
+    ],
+    [
+     "kaggle",
+     "rich_4006",
+     "none"
+    ]
+   ]
+  }
+ },
+ "compactions": {
+  "pooled": {
+   "n": 48,
+   "mean_recap": 2.542,
+   "mean_none": 1.958,
+   "mean_paired_diff": 0.583,
+   "ci95": [
+    -0.021,
+    1.208
+   ],
+   "wilcoxon_p": 0.0901,
+   "trimmed10": 0.5,
+   "excluded": []
+  },
+  "modal": {
+   "n": 16,
+   "mean_recap": 2.812,
+   "mean_none": 1.438,
+   "mean_paired_diff": 1.375,
+   "ci95": [
+    0.312,
+    2.688
+   ],
+   "wilcoxon_p": 0.0317,
+   "trimmed10": 1.071,
+   "excluded": []
+  },
+  "kaggle": {
+   "n": 32,
+   "mean_recap": 2.406,
+   "mean_none": 2.219,
+   "mean_paired_diff": 0.188,
+   "ci95": [
+    -0.562,
+    0.906
+   ],
+   "wilcoxon_p": 0.5476,
+   "trimmed10": 0.231,
+   "excluded": []
+  }
+ }
+}

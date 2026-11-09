@@ -82,6 +82,19 @@ json.dump(res['moderators'], open(OUT / 'moderators.json', 'w'), indent=2)
 for m, h in res['primary'].items():
     print(f"H1 {m} {HEADLINE[0]}-none: mean={h['mean']:.3f} CI=[{h['lo']:.3f}, {h['hi']:.3f}] "
           f"wins/losses={h['wins']}/{h['losses']} p_holm={h['p_holm']:.4f} -> {h['verdict']}")"""),
+    (CODE, """# Recap vs no memory: every reported number, regenerated from results/run_rows.jsonl (rows only)
+import importlib.util
+rr = ROOT / 'results' / 'run_rows.jsonl'
+if rr.exists():
+    spec = importlib.util.spec_from_file_location('analyze_rows', ROOT / 'results' / 'analyze_rows.py')
+    ar = importlib.util.module_from_spec(spec); spec.loader.exec_module(ar)
+    rec = ar.main(rr, OUT / 'recap_analysis.json')
+    for k, v in rec['primary_resolve_run1'].items():
+        print(f"run 1 {k}: recap {v['x_resolved']} vs none {v['y_resolved']} of {v['pairs']}, diff {v['diff']:+.3f}, "
+              f"Newcombe [{v['newcombe95'][0]:+.3f}, {v['newcombe95'][1]:+.3f}], McNemar p {v['mcnemar_p']:.3f}")
+    print('post-hoc tests:', rec['posthoc_tests']['count'])
+else:
+    print('no results/run_rows.jsonl')"""),
 ]
 
 
