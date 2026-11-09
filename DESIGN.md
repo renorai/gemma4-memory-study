@@ -753,6 +753,22 @@ dataset) and writes three push directories.
   sub-agents' final messages, for the sub-agents that the run's built submission gives an
   `output_key`. Caveat for `recap_shuffled`: its explorer finding is the agent's own, so that
   control misleads only through the notes page.
+- **2026-11-09T03:06Z, out-of-sample smoke round 2 at 63d9fd4 meets the bar; the recap arm is
+  frozen; before any memory-arm result on the 48.** Same two tasks, 1 run each:
+  - both `plumbing_failed` false: status on, no memory error, and injected state before every
+    compaction (`injected_share` 1.0 on both; 1 and 5 compactions);
+  - notes written 1 and 0. The one note landed in its task's own tmp folder. The page
+    tokens per call were [63], and the explorer findings 6 and 2 injections of 16-258 tokens;
+  - no context overflow; wall time 3.7 and 9.8 minutes; model calls 53 and 108.
+  No resolve counts from these two tuning tasks enter any analysis.
+  Measurement fix found here, in memory/plumbing.py only (the operator side; it is not shipped
+  and changes no submission): a step can record the coder's `notes` call together with the
+  sub-agent's `run_skill_script`, with a single observation.content. That content is the
+  script's result, so it is now given to the call that names the same file, not to the first
+  call.
+  **Frozen for the recap arm:** the prompt (runner/prompt_parts/memory.md), the notes and
+  explorer injection, and the 1,500-token page cap, as at 63d9fd4. The pin is the commit that
+  adds this entry, whose code hash is recorded per row.
 
 ## 11. Stretch: rejection-sampling LoRA (exploratory, after the headline runs)
 

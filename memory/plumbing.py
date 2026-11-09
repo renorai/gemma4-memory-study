@@ -55,6 +55,28 @@ def _stdout(out):
     return out if isinstance(out, str) else json.dumps(d)
 
 
+def _owner(calls, content):
+    """The call a step's single observation.content belongs to. A step can record an agent_tool
+    call (notes, explorer) together with the sub-agent's run_skill_script; the content then is the
+    skill script's result, which names its skill and file. Otherwise the first call."""
+    try:
+        d = json.loads(content) if isinstance(content, str) else content
+    except ValueError:
+        d = None
+    if isinstance(d, dict) and "file_path" in d:
+        for c in calls:
+            a = c.get("arguments", {})
+            if isinstance(a, str):
+                try:
+                    a = json.loads(a)
+                except ValueError:
+                    a = {}
+            if (c.get("function_name") == "run_skill_script"
+                    and str(a.get("file_path", "")).strip('"') == str(d["file_path"])):
+                return c
+    return calls[0] if calls else None
+
+
 def read_steps(trace_path):
     """[(turn or None, tool, args dict, output text)] and the root agent's prompt tokens per turn,
     with the same root/turn rule as harness.swegemma.read_trace."""
@@ -83,7 +105,7 @@ def read_steps(trace_path):
                 except ValueError:
                     args = {"_": args}
             out = results.get(c.get("tool_call_id") or c.get("id"))
-            if out is None and len(calls) == 1:
+            if out is None and obs.get("content") is not None and c is _owner(calls, obs.get("content")):
                 out = obs.get("content")
             out = out if isinstance(out, str) else json.dumps(out) if out is not None else ""
             steps.append((turn if is_root else None, name, args or {}, out))
@@ -153,7 +175,8 @@ def plumbing(trace_path, arm, patch="", agents=INJECTING_AGENTS):
         if wm and first.startswith("noted #"):
             m = _NOTES_PATH.search(first)
             acks.append(m.group(1) if m else None)
-        if wm and turn is not None and "where was I" in text:          # a page the coder asked for
+        if wm and turn is not None and "where was I" in text and '"--page"' not in json.dumps(args):
+            # a page the coder asked for itself (a `--page` note is the notes sub-agent's, counted below)
             injected.append((turn, "recap", count_tokens(text[text.index("where was I"):])))
     for turn, agent, text in sub_agent_answers(trace_path, agents):
         if agent == "notes" and "where was I" in text:
