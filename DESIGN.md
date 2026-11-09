@@ -619,7 +619,7 @@ dataset) and writes three push directories.
   has limited headroom on that subset, and the repeated-action rate (stats/repeats.py) is the
   key mechanism metric. The resolve rate stays the primary outcome, as registered.
 
-- **2026-11-09T01:40Z, a note's token cost now includes the notes path.** Since ff43737, every
+- **2026-11-09T01:35Z, a note's token cost now includes the notes path.** Since ff43737, every
   `note` acknowledgement ends with ` [<notes folder>/notes.jsonl]`. `memory/plumbing.py`
   (`_NOTES_PATH`) reads it back to check that notes land in the task's own folder. Measured with
   `renor.count_tokens` (`tests/test_workmem.py` keeps the note's own cost under 20 tokens with the
