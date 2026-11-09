@@ -769,6 +769,45 @@ dataset) and writes three push directories.
   **Frozen for the recap arm:** the prompt (runner/prompt_parts/memory.md), the notes and
   explorer injection, and the 1,500-token page cap, as at 63d9fd4. The pin is the commit that
   adds this entry, whose code hash is recorded per row.
+- **2026-11-09T03:10Z, overflow headroom, caps, recap_shuffled and the Kaggle cut rule; written before any
+  memory-arm result is read. DESIGN only; the frozen arm is unchanged.**
+  1. **The ~14k compaction trigger counts instruction tokens.** In google-adk 1.36.1,
+     `CompactionRequestProcessor` runs before every model call. It compacts when the most recently
+     observed `usage_metadata.prompt_token_count` reaches `token_threshold` (14,336)
+     (`apps/compaction.py:_latest_prompt_token_count`). That is the server-reported prompt size of
+     the previous call: system instruction, tool schemas and injected state included. The traces,
+     read on CPU, agree:
+     - the coder prompt just before a detected compaction has a median of 14,553 tokens
+       (throughput, n=34) and 14,551 (Modal no-memory, n=50); 82% and 84% are at or above 14,336;
+     - the Modal round-1 recap smoke (8191199): fastapi_14301 never compacted and overflowed
+       after a last observed prompt of 13,298 tokens; rich_3063 compacted at 14,624.
+
+     Because the trigger reads the PREVIOUS call's size, one large step can still jump from
+     below 14,336 to over 16,384 input tokens, where max_output_tokens 16,384 meets the 32,768
+     limit, before compaction runs. Example: Modal no-memory rich_4079 overflowed at a last
+     observed prompt of 13,813 with no compaction. Memory arms start about 2,000 tokens larger,
+     so they reach the trigger sooner, and they restart larger after each compaction.
+
+     Pre-registered descriptive split, per arm: overflows before vs after the first compaction,
+     and the last observed coder prompt tokens before the overflow. ITT stays primary: every
+     task is analysed in its assigned arm whatever happened, and the main analysis is never
+     conditioned on overflow.
+  2. **Caps, reported per arm next to overflow:** hits of the 100-tool-call cap (task_results
+     error "exceeded tool call budget") and of the 60-minute cap (the harness's time-budget
+     error). The memory arm's `notes` and `explorer` sub-agent calls count against the call cap,
+     like any other tool call.
+  3. **recap_shuffled, if it ever runs,** swaps in the donor task's explorer finding as well as
+     its notes, so the control misleads through both injected channels. It runs only if its
+     estimated cost plus a 20% margin fits under the $25 Modal stop. Otherwise it is dropped,
+     and the paper says why.
+  4. **Kaggle cut rule:** in every arm, run 1 completes on all of that runner's tasks before run 2
+     starts, so if quota ends, the finished runs still form complete pairs.
+     `kernels/arm_run/arm_run.py` already works this way: its run loop finishes `eval_arm` over
+     the whole task list for run r before run r+1. The recap-arm push uses it unchanged.
+  5. **Framing for the paper:** the arm tests automatic carry-over of the explorer's latest
+     finding (plus rare agent-written notes) across compaction. It does NOT test agent-written
+     working memory. The adherence result is a headline finding in its own right: 0 notes in 6
+     smoke runs, and 1 after the explicit instruction.
 
 ## 11. Stretch: rejection-sampling LoRA (exploratory, after the headline runs)
 
