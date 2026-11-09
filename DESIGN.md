@@ -896,7 +896,7 @@ dataset) and writes three push directories.
 - **2026-11-09T04:41Z, main-competition note (future work, not this paper):** a guard that ends the run after
   the first ok `submit_patch`, in every arm, so a looping agent cannot spend its remaining
   budget. Not used in any arm of this study.
-- **2026-11-09T05:00Z, the `submit_patch` loop diagnosed, and two descriptive post-hoc checks on
+- **2026-11-09T04:44Z, the `submit_patch` loop diagnosed, and two descriptive post-hoc checks on
   the Modal run-1 traces (CPU).**
   - **Loop mechanism (agent behaviour, not memory-arm machinery).** The harness ends a run after
     submit only on a model response with visible text and no tool call (HARNESS_README section
