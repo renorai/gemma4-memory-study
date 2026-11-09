@@ -1010,6 +1010,9 @@ dataset) and writes three push directories.
      excludes.
   Freeze move: adding `stats/caps.py` moves the frozen-shared baseline from cc69db5 to 65f28b4.
   The change is analysis-only; no file that either arm runs changed.
+- **2026-11-09T07:48Z, analysis hierarchy, written before any run-2 recap row is read.** Run 1 pooled over 48
+  pairs (Modal 16 + Kaggle 32), with the bootstrap stratified by backend, is PRIMARY. The per-task
+  mean over all available runs is the sensitivity analysis. Run 2 cannot change the headline.
 
 ## 11. Stretch: rejection-sampling LoRA (exploratory, after the headline runs)
 
