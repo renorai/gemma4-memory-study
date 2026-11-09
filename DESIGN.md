@@ -631,6 +631,15 @@ dataset) and writes three push directories.
 
   This per-note cost counts toward the recap arms' context use and is not part of the 600-token
   recap budget. It is reported with the arm's token totals.
+- **2026-11-09T02:00Z, pin moved from ff43737: the second Modal recap check never reached the
+  skill; written before any memory-arm result.** At ff43737 (code 00a0a49a...), on the same 2
+  tasks (fastapi_14487, fastapi_14873), neither agent called `recall.py`. One saved the issue to
+  /tmp/task.md and went straight to `explorer`; the other did not save it at all. With no status
+  line, no working notes were taken, and the plumbing was not exercised (both runs
+  `plumbing_failed`). At ff9bf75d the same task had reached the skill. The prompt's "1. Then run
+  the recall script" read as optional. Change (memory.md only): the recall is now the explicit
+  second action, before `explorer` or any read, and must not be skipped, because its first line
+  says which memory the run has. Shared paths are unchanged.
 
 ## 11. Stretch: rejection-sampling LoRA (exploratory, after the headline runs)
 

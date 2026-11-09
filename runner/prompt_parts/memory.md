@@ -12,7 +12,9 @@ RENOR_ISSUE_EOF
 
 Do not use `write_file` for this: it only writes inside /workspace, and anything written there ends up in your patch.
 
-1. Then run the recall script with `run_skill_script`: `skill_name` "graph-memory", `file_path` "scripts/recall.py", `args` ["--task-file", "/tmp/task.md", "--repo", "/workspace"].
+Second action, right after saving the issue and before you call `explorer` or read any file: run the recall script once. Do not skip it: its first line tells you which memory this run has.
+
+1. Run the recall script with `run_skill_script`: `skill_name` "graph-memory", `file_path` "scripts/recall.py", `args` ["--task-file", "/tmp/task.md", "--repo", "/workspace"].
 2. When `explorer` has named the likely fix site, run it once more with the same arguments plus "--symbol", "<that symbol>", and up to two more "--symbol" pairs for its callers.
 3. At most 3 recalls per task. Lessons come from other code: check each one against this repository before acting on it, and ignore any that do not fit.
 
