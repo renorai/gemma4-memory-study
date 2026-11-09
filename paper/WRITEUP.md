@@ -8,17 +8,17 @@ Run 2 of the Kaggle recap arm is sensitivity only (DESIGN.md, 2026-11-09T07:48Z)
 the headline.
 -->
 
-# Carrying the Last Finding Across Context Compaction: A Pre-Registered Null Result for Automatic Working Memory in a Small Gemma 4 Coding Agent
+# Carrying the Last Finding Across Context Compaction: A Pre-Registered Null Result for Automatic Finding Re-Injection in a Small Gemma 4 Coding Agent
 
 Patrick Passos (Renor)
 
 ## Abstract
 
-When a coding agent's context is compacted, it loses what it found. We ask whether automatic,
-Renor-style working memory that survives compaction helps a small model solve real repository
-tasks. The treatment arm does **not** test agent-written memory: the harness automatically
-re-injects the explorer sub-agent's latest finding into every coder request, plus any notes the
-agent chose to write (it almost never did). We compare it with no memory using Gemma 4 31B (QAT,
+When a coding agent's context is compacted, it loses what it found. We ask whether automatically
+re-injecting an agent's last finding after compaction helps a small model solve real repository tasks. The treatment
+is a test-harness mechanism, not the Renor product: the harness re-injects the explorer sub-agent's
+latest finding into every coder request, plus any notes the agent chose to write (it almost never
+did). It does **not** test agent-written memory. We compare it with no memory using Gemma 4 31B (QAT,
 4-bit) in the Gemma 4 Developer Agent harness, on 98 paired tasks across three backends (Modal H100,
 16 tasks; Kaggle 4x L4, 32 tasks; AWS L40S, 50 tasks added in a pre-registered extension).
 
@@ -42,15 +42,15 @@ noise.
 ## 1. Introduction
 
 Renor's product promise is that context told once stays available to an agent when it is relevant.
-For a small coding agent, the first place that promise breaks is inside a single task. The Gemma 4
+For a small agent, that promise first breaks inside a single task. The Gemma 4
 harness compacts the conversation when the previous prompt reaches 14,336 tokens. In 16 no-memory
 throughput traces, 13 tasks compacted, and 53 of 83 exact repeats of a read, a command or an
 explorer question came after a compaction. Experience memory across tasks targets a different
 problem, and on coding tasks 11 of 12 solver and memory pairings did not beat memory-off
 (VibeMemBench). We therefore expected a null result and designed the study to report one honestly.
 
-**Question.** Does automatic working memory that survives compaction help Gemma 4 31B resolve real
-repository tasks?
+**Question.** Does automatically re-injecting the explorer's last finding after compaction help
+Gemma 4 31B resolve real repository tasks? This is a harness mechanism, not the Renor product.
 
 **Contributions.**
 1. A pre-registered paired comparison, stratified by backend, with a null primary result, a
@@ -269,6 +269,7 @@ the task family. We cite no benchmark number as comparable to this harness.
   Gemma 4 31B QAT.
 - **Valid-set skew.** 105 of 129 tasks were valid; the excluded ones are mostly fastapi tasks that
   error on their base commit. Agents ran under the subprocess sandbox, not the official scorer.
+- **Not the Renor product.** Renor's retrieval, graph and cross-session memory were not tested.
 - **No embeddings**, no misleading-memory control (dropped under the $25 Modal cap), and a modest
   ceiling: no memory resolved 23 of 32 Modal runs.
 

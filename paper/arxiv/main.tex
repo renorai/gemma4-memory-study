@@ -14,7 +14,7 @@
 \newcommand{\code}[1]{\texttt{#1}}
 
 \title{Carrying the Last Finding Across Context Compaction:\\
-A Pre-Registered Null Result for Automatic Working Memory\\in a Small Gemma~4 Coding Agent}
+A Pre-Registered Null Result for Automatic Finding Re-Injection\\in a Small Gemma~4 Coding Agent}
 \author{Patrick Passos\\Renor}
 \date{November 2026}
 
@@ -22,11 +22,12 @@ A Pre-Registered Null Result for Automatic Working Memory\\in a Small Gemma~4 Co
 \maketitle
 
 \begin{abstract}
-When a coding agent's context is compacted, it loses what it found. We ask whether automatic,
-Renor-style working memory that survives compaction helps a small model solve real repository
-tasks. The treatment arm does \emph{not} test agent-written memory: the harness automatically
-re-injects the explorer sub-agent's latest finding into every coder request, plus any notes the
-agent chose to write (it almost never did). We compare it with no memory using Gemma~4 31B (QAT,
+When a coding agent's context is compacted, it loses what it found. We ask whether automatically
+re-injecting an agent's last finding after compaction helps a small model solve real repository tasks. The
+treatment is a test-harness mechanism, not the Renor product: the harness re-injects the explorer
+sub-agent's latest finding into every coder request, plus any notes the agent chose to write (it
+almost never did). It does \emph{not} test agent-written memory, and no result here speaks to
+Renor. We compare it with no memory using Gemma~4 31B (QAT,
 4-bit) in the Gemma~4 Developer Agent harness~\citep{kaggle2026gemma4agent}, on 98 paired tasks
 across three backends (Modal H100, 16 tasks; Kaggle 4$\times$L4, 32 tasks; AWS L40S, 50 tasks added in
 a pre-registered extension). The pre-registered primary outcome, pooled run-1 resolve rate on the
@@ -60,8 +61,9 @@ VibeMemBench~\citep{fan2026vibemembench} found that 11 of 12 solver and memory p
 beat memory-off. We therefore built the study expecting a likely null result and designed it to
 report one honestly.
 
-\paragraph{Question.} Does automatic working memory that survives compaction help Gemma~4 31B
-resolve real repository tasks?
+\paragraph{Question.} Does automatically re-injecting the explorer's last finding after compaction
+help Gemma~4 31B resolve real repository tasks? This tests a harness mechanism motivated by that
+promise, not the Renor product.
 
 \paragraph{Contributions.}
 \begin{enumerate}
@@ -346,6 +348,8 @@ We cite no benchmark number as comparable to this harness.
   tasks that error on their base commit.
 \item \textbf{Sandbox.} Agents ran under the subprocess sandbox with our scorer-like environment, not
   the official Docker scorer.
+\item \textbf{Not the Renor product.} Renor's retrieval, graph and cross-session memory were not
+  tested.
 \item \textbf{No embeddings}, no misleading-memory control (it was dropped under the \$25 Modal
   cap), and a modest ceiling: no memory resolved 23 of 32 Modal runs.
 \end{itemize}
