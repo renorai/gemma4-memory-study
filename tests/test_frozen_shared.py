@@ -3,9 +3,9 @@ differs from the frozen baseline commit.
 
 Memory-arm work (memory/, submission/skills/graph_memory/, the lesson store format, the
 memory-only prompt part runner/prompt_parts/memory.md) may change; nothing below may. The
-baseline commit is a5c87f0 (9 Nov 2026), the last commit that changed shared code: the
-memory-arm-only notes sub-agent in runner/build_submission.py and runner/validate.py (automatic
-recall, DESIGN.md section 10); tests/test_none_build_identity.py proves the `none` build is
+baseline commit is 61e408a (9 Nov 2026), the last commit that changed shared code: the
+memory-arm-only notes sub-agent and explorer output_key in runner/build_submission.py and
+runner/validate.py (automatic recall, DESIGN.md section 10); tests/test_none_build_identity.py proves the `none` build is
 byte-identical to the earlier baselines (824dc84, ff9bf75d); set
 FROZEN_BASELINE_COMMIT to compare against another one. Skipped, never passed, when git or that
 commit is not available (a shallow clone, a Kaggle dataset copy).
@@ -17,7 +17,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-BASELINE = os.environ.get("FROZEN_BASELINE_COMMIT", "a5c87f058c81503855e0814ea2b5a93b581d9a53")
+BASELINE = os.environ.get("FROZEN_BASELINE_COMMIT", "61e408af87ab90398e45c812a7596337e6dffaab")
 
 # Shared by both arms: runner, harness adapter, kernels/common.py, eval_runner.py, the prompts and
 # agent config both arms ship, the budget (eval_config.yaml, runner/budget.py), the scoring
