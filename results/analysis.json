@@ -1471,5 +1471,39 @@
    }
   ]
  },
- "check_no_registered_figure_uses_exploratory_partial": true
+ "check_no_registered_figure_uses_exploratory_partial": true,
+ "extension_primary_resolve_run1": {
+  "pairs": 50,
+  "x_resolved": 18,
+  "y_resolved": 23,
+  "x_only": 1,
+  "y_only": 6,
+  "diff": -0.1,
+  "bootstrap95": [
+   -0.2,
+   0.0
+  ],
+  "newcombe95": [
+   -0.2019569205435796,
+   0.006611990881267238
+  ],
+  "mcnemar_p": 0.125
+ },
+ "combined_secondary_resolve_run1": {
+  "pairs": 98,
+  "x_resolved": 47,
+  "y_resolved": 48,
+  "x_only": 6,
+  "y_only": 7,
+  "diff": -0.01020408163265306,
+  "bootstrap95": [
+   -0.08163265306122448,
+   0.061224489795918366
+  ],
+  "newcombe95": [
+   -0.08344873708667852,
+   0.06332996839654562
+  ],
+  "mcnemar_p": 1.0
+ }
 }
