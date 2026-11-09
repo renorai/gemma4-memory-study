@@ -659,6 +659,20 @@ dataset) and writes three push directories.
     - The raw traces of all three sources contain observation.content.
   - The Kaggle no-memory baseline (32 tasks, still running) is checked the same way when it
     completes.
+- **2026-11-09T02:08Z, pre-registered: protocol adherence is a reported outcome; written before
+  any memory-arm result.** For every arm, the analysis reports:
+  - the share of compactions followed by a recap (`recall_runs_after_compaction`, per compaction
+    from memory/plumbing.py);
+  - notes written per task (`notes_written`);
+  - the first-recall status (`skill_status`).
+  Low adherence is not a defect to tune away silently. A small model that does not use memory
+  tools on its own is itself a finding the paper reports. It matches Renor's product data: agents
+  ask for memory on about 1 in 24 prompts unless recall is automatic. Any prompt tuning for
+  adherence uses only valid tasks outside the 48-task subset. The next two in seed order are
+  rank 49 `fastapi_14301` and rank 50 `rich_3063` (the same `stratified_subset`, seed 20261107,
+  over the 105 valid tasks; its first 48 equal the published subset). Tuning is limited to at
+  most 2 rounds, and its pass bar is `plumbing_failed` false on both tasks. The prompt is then
+  frozen, and the change is recorded here.
 
 ## 11. Stretch: rejection-sampling LoRA (exploratory, after the headline runs)
 
