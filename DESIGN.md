@@ -822,6 +822,50 @@ dataset) and writes three push directories.
   - Lesson for any rerun: run 1 completes before run 2 starts (as the Kaggle cut rule above), and
     a watchdog stops the eval and saves the finished tasks when vLLM's request counters stop
     moving.
+- **2026-11-09T04:10Z, before the Modal run-1 rerun: freeze watchdog, money cap,
+  lost-to-infrastructure rule, pairing, per-protocol split, and the likely story; written before
+  the rerun and before any complete memory-arm comparison.**
+  1. **Watchdog** (the Modal runner, operator side). Every 10 s it reads vLLM's log, its
+     /metrics and nvidia-smi. It stops the eval cleanly (SIGTERM, then SIGKILL, to the eval
+     process; swegemma has already appended every finished task) when any of these holds:
+     - no new vLLM status line for 120 s while requests are running, or /metrics does not
+       answer;
+     - no generated tokens for 180 s while requests are running;
+     - GPU use at 0% for 120 s with requests running;
+     - the budget deadline.
+     The finished tasks are kept and checkpointed. Any trigger is recorded here.
+  2. **Money cap.** The Modal function's hard timeout is computed from current usage ($19.92
+     before the rerun), a $24.00 cap ($1 under the $25 stop), a $0.50 billing-lag margin and
+     $5.09/h x 1.05 (H100 + 16 CPU + 48 GiB). That gives 0.67 h, so a second freeze cannot take the
+     total past $24.
+  3. **Lost to infrastructure:** a task-run in flight at a freeze is rerun once, from scratch,
+     the same way in both arms. The Modal recap arm's 10 missing run-1 tasks are rerun under this
+     rule, at the same pin (59f10a6, code 16e71dab). They run as one eval at concurrency 10, so
+     all 10 run at once, below the 16 that ran at once in the no-memory arm.
+  4. **Modal pairing:** the primary is run 1 against run 1, complete on all 16 tasks after the
+     rerun. The sensitivity check is the per-task mean over each arm's available runs. The 7
+     finished run-2 recap runs are exploratory, not headline. Run 2's 9 missing recap tasks are
+     not rerun (budget).
+  5. **Per-protocol:** the pre-registered definition (excluding `plumbing_failed`) is kept. A
+     post-hoc split, labelled as such, reports:
+     - machinery failures: status not "on", a memory error, or a note outside the task folder;
+     - nothing to inject at a compaction: an adherence failure, because the agent had called
+       neither `notes` nor `explorer`.
+     Per-protocol is selection-biased toward agents that explore early.
+  6. **The mechanism stays frozen on the 48.** The likely story, written now: injection can help
+     only when the agent produces something to inject, an explorer answer or a note, before it
+     compacts. Future work (the main competition, not this paper): a recap that the harness
+     builds from the tool history, which needs no agent cooperation.
+  7. **`recap_shuffled` is dropped.** By rule 3 above it runs only if its estimated cost plus 20%
+     fits under the $25 stop. About $4-5 x 1.2 does not fit in the roughly $4 left, so the paper
+     reports no misleading-memory control on Modal, and says why.
+  8. **Prompt-too-long rejections from the vLLM logs** (CPU check; each rejected call is retried
+     by LiteLLM, so these count rejected requests, not tasks):
+     - no-memory arm: 96 of 1,866 requests (5.1%);
+     - recap arm before the freeze: 70 of 1,028 (6.8%), in bursts (12, 5, 29, 12, 12 per minute)
+       that include 12 in the minute of the freeze. A burst of 29 at 03:15Z did not freeze it.
+     The memory arm has more rejections per request, so the freeze may be related to the arm.
+     The cause is not established.
 
 ## 11. Stretch: rejection-sampling LoRA (exploratory, after the headline runs)
 
