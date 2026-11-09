@@ -23,7 +23,7 @@ agent chose to write (it almost never did). We compare it with no memory using G
 16 tasks; Kaggle 4x L4, 32 tasks).
 
 The pre-registered primary outcome, pooled run-1 resolve rate, was 29/48 with memory against 25/48
-without: +8.3 points, Newcombe 95% interval [-1.3, +17.5], exact McNemar p = 0.22. This is a null
+without: +8.3 points, Newcombe 95% interval [-2.1, +18.3], exact McNemar p = 0.22. This is a null
 result. With 19% of tasks flipping between two identical no-memory runs, the study can exclude only
 large effects (minimal detectable effect about ±18 points). The registered secondary, repeated
 actions per compaction, was also null (+0.30 [-4.50, +5.98]). Two directional hypotheses found on
@@ -102,7 +102,7 @@ in-task recap. That decision was made from no-memory traces only, before any mem
 - **Adherence and delivery:** notes written, and the share of compactions at which something was
   injected. Both were registered as outcomes.
 
-Every test not listed above is post-hoc and labelled so. We ran 24 post-hoc tests in all
+Every test not listed above is post-hoc and labelled so. We ran 23 post-hoc tests in all
 (`results/posthoc_tests.md`).
 
 ### 2.4 Making the measurement trustworthy
@@ -150,18 +150,22 @@ pairs give 80% power only for effects of about ±18 points.
 <!-- RESULTS-TABLE -->
 | Set | recap / none resolved | recap-only / none-only | difference | Newcombe 95% | exact McNemar p |
 |---|---|---|---|---|---|
-| Pooled, 48 (primary) | 29 / 25 | 5 / 1 | +8.3 pts | [-1.3, +17.5] | 0.22 |
-| Modal H100, 16 | 12 / 11 | 2 / 1 | +6.3 pts | [-14.6, +26.7] | 1.0 |
-| Kaggle 4x L4, 32 | 17 / 14 | 3 / 0 | +9.4 pts | [-0.5, +18.6] | 0.25 |
+| Pooled, 48 (primary) | 29 / 25 | 5 / 1 | +8.3 pts | [-2.1, +18.3] | 0.22 |
+| Modal H100, 16 | 12 / 11 | 2 / 1 | +6.3 pts | [-17.5, +29.3] | 1.0 |
+| Kaggle 4x L4, 32 | 17 / 14 | 3 / 0 | +9.4 pts | [-2.1, +20.2] | 0.25 |
 
 *Table 2. Run 1, intention to treat. The backend-stratified bootstrap gives [0.0, +18.8] pooled. Its
 lower bound sits at 0 because of the 5/1 split and is not evidence against harm.*
 
 Memory resolved 4 more of 48 tasks. This is not a significant effect. The interval excludes harms
-larger than about 1 point and gains larger than about 18 points. Figure 1 puts this next to the A/A
+larger than about 2 points and gains larger than about 18 points. Figure 1 puts this next to the A/A
 contrast. The no-memory arm, compared with itself, moved by the same +6.3 points as the Modal
 treatment effect. Per-protocol, which excludes runs flagged `plumbing_failed`, the result is
-the same (26 pairs, 13 vs 11, p = 0.5).
+the same (26 pairs, 13 vs 11, p = 0.5). So is the registered sensitivity analysis, the per-task mean over all available runs (+5.2 points, bootstrap [-2.1, +12.5]).
+
+The six discordant pairs look like noise (post-hoc, descriptive). The no-memory arm solved all 5
+of its run-1 losses in its own run 2. The one task it won, requests_7328, was a recap run caught in
+the `submit_patch` loop (Section 3.4).
 
 ![Figure 1](figures/forest.png)
 *Figure 1. Resolve-rate difference with Newcombe 95% intervals. Blue: recap minus none, per backend
@@ -184,14 +188,14 @@ no-memory run, and it shrinks to -2.26 once post-submit submits are removed.
 
 **Post-hoc denominator checks (exploratory).** A per-compaction rate can fall simply because
 compactions rise. We therefore also looked at raw repeats per task, repeats per tool call after the
-first compaction, and compactions per task. These checks belong to the 24 post-hoc tests. Only
+first compaction, and compactions per task. These checks belong to the 23 post-hoc tests. Only
 single-stratum tests fell below 0.05:
 - Kaggle repeat rate with post-submit submits removed (p 0.029);
 - Kaggle repeats per call (0.021 registered steps, 0.042 without post-submit submits);
 - Modal compactions per task (0.032);
 - the Modal discovery of H-b (0.0088).
 
-None survives a Bonferroni correction over the 24, and no pooled test reached 0.05. Pooled raw
+None survives a Bonferroni correction over the 23, and no pooled test reached 0.05. Pooled raw
 repeats did not fall (post-hoc -0.98 [-3.17, +1.02], p 0.53). The pooled post-hoc rate has a
 bootstrap interval that excludes 0, but its rank test does not reach 0.05 (p 0.23). We do not call
 any of these results significant. A "memory reduces repeated actions" claim is not supported.
