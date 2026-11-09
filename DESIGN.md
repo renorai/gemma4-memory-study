@@ -943,6 +943,9 @@ dataset) and writes three push directories.
     - H-b: 6/16 vs 0/16, one-sided Fisher p=0.0088.
   - A failure to replicate on Kaggle is reported as such. Kaggle runs a different backend (4x L4
     vs H100), and the arms are otherwise identical (code pin 59f10a6, env hash 7f74aeda...).
+  Freeze move: `stats/` is frozen shared code, so adding `stats/hypotheses.py` moves the
+  frozen-shared baseline from 61e408a to cc69db5. The change is analysis-only. No file that either
+  arm runs changed, and the recap arm runs at its pin 59f10a6.
 
 ## 11. Stretch: rejection-sampling LoRA (exploratory, after the headline runs)
 
