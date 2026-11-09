@@ -1005,6 +1005,8 @@ dataset) and writes three push directories.
      about 2.8 x 0.063 = 0.18, i.e. about +/-18 points of resolve rate. The paper states it can rule
      out large effects, not small ones, and reports the final CI as the range of effects it
      excludes.
+  Freeze move: adding `stats/caps.py` moves the frozen-shared baseline from cc69db5 to 65f28b4.
+  The change is analysis-only; no file that either arm runs changed.
 
 ## 11. Stretch: rejection-sampling LoRA (exploratory, after the headline runs)
 
