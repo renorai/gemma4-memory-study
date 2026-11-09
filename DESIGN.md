@@ -619,6 +619,18 @@ dataset) and writes three push directories.
   has limited headroom on that subset, and the repeated-action rate (stats/repeats.py) is the
   key mechanism metric. The resolve rate stays the primary outcome, as registered.
 
+- **2026-11-09T01:40Z, a note's token cost now includes the notes path.** Since ff43737, every
+  `note` acknowledgement ends with ` [<notes folder>/notes.jsonl]`. `memory/plumbing.py`
+  (`_NOTES_PATH`) reads it back to check that notes land in the task's own folder. Measured with
+  `renor.count_tokens` (`tests/test_workmem.py` keeps the note's own cost under 20 tokens with the
+  path replaced):
+  - the acknowledgement alone is 9 tokens;
+  - the path adds 15 to 19 tokens for a container path (`/tmp/renor-notes/<12-hex key>/notes.jsonl`);
+  - it adds about 31 to 38 for a longer subprocess-sandbox path (estimated on a synthetic
+    `/tmp/swegemma-<id>/<task>/tmp/renor-notes/<key>/notes.jsonl`; the real path is in the traces).
+
+  This per-note cost counts toward the recap arms' context use and is not part of the 600-token
+  recap budget. It is reported with the arm's token totals.
 ## 11. Stretch: rejection-sampling LoRA (exploratory, after the headline runs)
 
 LoRA adapters are allowed (.safetensors, multi-LoRA). The stretch is a 12B LoRA trained on 12B's

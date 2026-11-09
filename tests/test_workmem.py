@@ -127,7 +127,12 @@ class Unit(unittest.TestCase):
         outs = [self.run_wm("note", "--kind", "tried", f"ran check {i}") for i in range(1, 13)]
         with_recap = [i + 1 for i, o in enumerate(outs) if "where was I" in o]
         self.assertEqual(with_recap, [6, 12])
-        self.assertLess(renor.count_tokens(outs[0]), 20)    # a plain note costs a few tokens
+        # The ack names the notes file, which memory/plumbing.py reads back (_NOTES_PATH) to check
+        # where notes landed. Its token cost depends on the folder path, so the note's own cost is
+        # measured with the path replaced; the path cost is stated in DESIGN.md section 10.
+        path = os.path.join(self.dir, "notes.jsonl")
+        self.assertIn(f"[{path}]", outs[0])
+        self.assertLess(renor.count_tokens(outs[0].replace(path, "P")), 20)    # a plain note costs a few tokens
 
     def test_writes_only_under_tmp(self):
         for bad in ("/workspace/notes", "/home", "/tmp", "relative/dir"):
