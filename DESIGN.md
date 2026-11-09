@@ -542,6 +542,27 @@ dataset) and writes three push directories.
   it. The subset is not re-seeded again.
   The validation ran code hash 5bd2d706... (aa7e3378). The sandbox environment code is the same at
   the final pin, except the python3.13 path fix.
+- **2026-11-09T00:27Z, backend is confounded with repo; written before any memory-arm result.** The
+  allocation rule, exactly:
+  - `stratified_subset` orders each repo's valid tasks by sha256(f"20261107:{task_id}"), then
+    takes them round-robin across repos in name order (fastapi, httpx, requests, rich) until 48.
+  - `split_every_third` sends seed ranks 3, 6, 9, ... (0-based index i with i % 3 == 2) to Modal;
+    the rest run on Kaggle.
+
+  Round-robin gives every repo an equal share until a repo runs out, not a share proportional to
+  its valid tasks. So requests keeps all 9 of its valid tasks; proportional allocation over the
+  105 valid tasks would give about 4. httpx keeps its 1 task, and fastapi and rich fill the rest
+  with 19 each. After httpx runs out at rank 2, the cycle has period 3 (fastapi, requests, rich)
+  through rank 27, so i % 3 == 2 lands on every requests task:
+  - Modal: all 9 requests tasks, plus rich 4 and fastapi 3;
+  - Kaggle: fastapi 16, rich 15, httpx 1.
+
+  Backend and repo are therefore confounded. The Kaggle 32 were already running, so the split is
+  kept, and no per-backend effect is claimed. The paired per-task arm difference stays valid,
+  because both arms of a task run on the same backend, with the same code and environment
+  hashes. The full table (seed rank, task, repo, backend) is in the run outputs.
+- **2026-11-09T00:27Z, the replay check ran at the final pin.** Its `post` tree has code hash dee8321a..., the
+  hash of ff9bf75d, checked against the replay dataset. Its `pre` tree is 7e75bf0e (dc480958...).
 
 ## 11. Stretch: rejection-sampling LoRA (exploratory, after the headline runs)
 
