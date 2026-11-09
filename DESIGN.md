@@ -896,6 +896,31 @@ dataset) and writes three push directories.
 - **2026-11-09T04:41Z, main-competition note (future work, not this paper):** a guard that ends the run after
   the first ok `submit_patch`, in every arm, so a looping agent cannot spend its remaining
   budget. Not used in any arm of this study.
+- **2026-11-09T05:00Z, the `submit_patch` loop diagnosed, and two descriptive post-hoc checks on
+  the Modal run-1 traces (CPU).**
+  - **Loop mechanism (agent behaviour, not memory-arm machinery).** The harness ends a run after
+    submit only on a model response with visible text and no tool call (HARNESS_README section
+    5.3). After its first ok submit, every coder response in requests_7205 and requests_7328
+    carried another `submit_patch` call: 441 and 385 of them, until the 500-call limit. Every
+    call came from the coder, and no notes or explorer call happened inside either loop. The
+    agent tools' answers end an ADK invocation (and so allow termination); they never hold one
+    open. The re-submitted patches were identical:
+    - requests_7205: 440 submits of 503 bytes and 1 file, with no other tool call after the
+      third submit;
+    - requests_7328: 385 submits of 925 bytes, with only budget-rejected commands between them.
+    Resolve is therefore unaffected. The loop is reported as a harm of the arm.
+  - **Post-hoc: compactions before the first ok submit**, run 1, paired by task, no-memory against
+    recap. The first coder request is larger in recap (median 3,966 tokens against 2,311).
+    - All 16 tasks: median 0 against 1.5 (totals 15 and 32). The recap arm had more on 9
+      tasks, fewer on 2 and the same on 5; mean +1.06, Wilcoxon p = 0.061.
+    - Without requests_7205 and requests_7328 (14 tasks): median 0.5 against 1.5 (totals 15 and
+      24). More on 8, fewer on 2, same on 4; mean +0.64, Wilcoxon p = 0.12.
+    The direction (recap compacts more, consistent with its larger requests) holds without the
+    two looping runs, but it is not significant at 0.05 with 14-16 tasks. requests_7205 had 0
+    compactions before its first submit in both arms; its loop compactions all came after.
+  - **Post-hoc: leaked `<|channel>` thought text in the coder's own output, per run:**
+    no-memory 0 of 32 runs; recap 7 of 23 runs (run 1: 6 of 16; run 2: 1 of 7), one step each.
+    2 of the 7 leaked steps are in the two looping runs (one each).
 
 ## 11. Stretch: rejection-sampling LoRA (exploratory, after the headline runs)
 
