@@ -162,13 +162,20 @@ def read_trace(path):
             root_pt.append(int(m.get("prompt_tokens") or 0))
         pin += int(m.get("prompt_tokens") or 0)
         pout += int(m.get("completion_tokens") or 0)
+        obs = s.get("observation") or {}
         results = {}
-        for r in (s.get("observation") or {}).get("results", []) or []:
+        for r in obs.get("results", []) or []:
             results[r.get("source_call_id")] = r.get("content")
-        for c in s.get("tool_calls", []) or []:
+        # swegemma's real traces carry the tool output in observation.content (one per step), not in
+        # observation.results[]. With no results[], the content goes to the step's first tool call;
+        # a step with several calls keeps one content, so the others get "" (DESIGN.md section 10).
+        shared = obs.get("content") if not results else None
+        for k, c in enumerate(s.get("tool_calls", []) or []):
             name = c.get("function_name") or c.get("name") or (c.get("function") or {}).get("name")
             raw = c.get("arguments", (c.get("function") or {}).get("arguments", {}))
             out = results.get(c.get("tool_call_id") or c.get("id"))
+            if out is None and shared is not None and k == 0:
+                out = shared
             steps.append({"tool": name, "args": _args(raw),
                           "output": out if isinstance(out, str) else json.dumps(out)[:5000] if out else "",
                           "author": author, "turn": turn if is_root else None})

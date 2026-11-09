@@ -62,6 +62,25 @@ class RepeatsTest(unittest.TestCase):
         self.assertEqual(tr["root_prompt_tokens"], [9000, 15000, 5000])
         self.assertEqual([s["turn"] for s in tr["steps"]], [0, None, 1, 2])
 
+    def test_read_trace_reads_observation_content(self):
+        """swegemma's real traces put the tool output in observation.content, not results[]."""
+        steps = [{"source": "agent", "extra": {"author": "coder"}, "metrics": {"prompt_tokens": 100},
+                  "tool_calls": [{"function_name": "read_file", "arguments": {"filepath": "a.py"}, "tool_call_id": "c1"}],
+                  "observation": {"content": "{\"status\": \"ok\", \"content\": \"x = 1\"}"}},
+                 {"source": "agent", "extra": {"author": "coder"}, "metrics": {"prompt_tokens": 120},
+                  "tool_calls": [{"function_name": "get_status", "arguments": {}, "tool_call_id": "c2"},
+                                 {"function_name": "get_status", "arguments": {}, "tool_call_id": "c3"}],
+                  "observation": {"content": "status text"}},
+                 {"source": "agent", "extra": {"author": "coder"}, "metrics": {"prompt_tokens": 130},
+                  "tool_calls": [{"function_name": "read_file", "arguments": {"filepath": "b.py"}, "tool_call_id": "c4"}],
+                  "observation": {"results": [{"source_call_id": "c4", "content": "from results"}], "content": "ignored"}}]
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "t.json"
+            p.write_text(json.dumps({"steps": steps}))
+            tr = read_trace(p)
+        self.assertEqual([s["output"] for s in tr["steps"]],
+                         ['{"status": "ok", "content": "x = 1"}', "status text", "", "from results"])
+
     def test_secondary_contrast(self):
         M = "m"
         rows = []

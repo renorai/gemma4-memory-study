@@ -640,6 +640,25 @@ dataset) and writes three push directories.
   the recall script" read as optional. Change (memory.md only): the recall is now the explicit
   second action, before `explorer` or any read, and must not be skipped, because its first line
   says which memory the run has. Shared paths are unchanged.
+- **2026-11-09T02:07Z, freeze move: `harness.swegemma.read_trace` reads tool outputs from
+  observation.content, before any memory-arm result.** The reader took tool outputs only from
+  `observation.results[]`, but swegemma's real traces carry them in `observation.content`, so
+  every step output came back empty (found by the Modal worker). The reader now uses `results[]`
+  when present. Otherwise it gives `observation.content` to the step's first tool call, and other
+  calls in the same step get "" (a step keeps one content).
+  - **What depended on outputs:** only `lessons_shown` (the `[L:...]` ids in recall output) and
+    the distiller's trace view. Resolved, `context_overflow` (task_results error) and the
+    preregistered repeated-action rate do not: repeats are computed from tool names and arguments
+    only, and the read-after-edit rule tracks `edit_file`/`write_file` arguments, not outputs.
+  - **Proof on raw traces, CPU** (old vs fixed reader):
+    - throughput (16 traces): identical tool/argument/turn sequences and repeat metrics for 16 of
+      16; non-empty outputs go from 0 to 1,033 of 1,056 calls;
+    - Modal no-memory, ff9bf75d (32 traces): identical for 32 of 32; outputs from 0 to 1,584 of
+      1,656 calls. Recomputed from the raw traces: run 1 resolved 11/16 with 40 repeats, run 2
+      12/16 with 54 repeats, unchanged.
+    - The raw traces of all three sources contain observation.content.
+  - The Kaggle no-memory baseline (32 tasks, still running) is checked the same way when it
+    completes.
 
 ## 11. Stretch: rejection-sampling LoRA (exploratory, after the headline runs)
 
