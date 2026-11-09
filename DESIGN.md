@@ -921,6 +921,28 @@ dataset) and writes three push directories.
   - **Post-hoc: leaked `<|channel>` thought text in the coder's own output, per run:**
     no-memory 0 of 32 runs; recap 7 of 23 runs (run 1: 6 of 16; run 2: 1 of 7), one step each.
     2 of the 7 leaked steps are in the two looping runs (one each).
+- **2026-11-09T04:47Z, two directional secondary hypotheses, pre-registered before any Kaggle recap-arm result
+  (the 2-task smoke included) is read.** Modal (H100) is the discovery set; Kaggle's 32 tasks
+  (L4x4) are the replication set; run 1 is primary. The detectors are frozen as code in
+  `stats/hypotheses.py` (sha256 of the file `790bb12413181cce1933ec3b9171d9f15ca07b6ef34794bbef576f0611041a49`) and tested in `tests/test_hypotheses.py`.
+  - **H-a:** recap has more compactions up to the first ok `submit_patch` than none.
+    - Unit: per task, `compactions_before_first_submit` for run 1. That is the compactions
+      (`stats/repeats.py:compaction_turns` over the coder's prompt tokens) at coder turns up to and
+      including the first `submit_patch` whose result is ok, or all compactions when no submit is ok.
+    - Test: paired one-sided exact Wilcoxon signed-rank, recap > none, over tasks.
+  - **H-b:** recap has more runs with leaked thought text (`<|channel>` in a coder message) than
+    none.
+    - Test: run-level one-sided Fisher exact, recap > none, run 1. The task-level version is also
+      reported.
+  - **Modal discovery numbers, post-hoc there.** The Modal worker reported H-a 9/2/5 (recap more
+    / fewer / equal), p=0.061 two-sided, and H-b 6/16 vs 0/16 in run 1. The frozen detectors, run
+    on the same Modal run-1 traces on CPU, give:
+    - H-a: 8/2/6, two-sided Wilcoxon p=0.117, one-sided p=0.059. The worker's own counter
+      definition was not in its script (`analyze_run1.py`); one task differs between the two
+      definitions. The frozen code above is the definition used for replication.
+    - H-b: 6/16 vs 0/16, one-sided Fisher p=0.0088.
+  - A failure to replicate on Kaggle is reported as such. Kaggle runs a different backend (4x L4
+    vs H100), and the arms are otherwise identical (code pin 59f10a6, env hash 7f74aeda...).
 
 ## 11. Stretch: rejection-sampling LoRA (exploratory, after the headline runs)
 
