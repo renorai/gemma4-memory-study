@@ -808,6 +808,20 @@ dataset) and writes three push directories.
      finding (plus rare agent-written notes) across compaction. It does NOT test agent-written
      working memory. The adherence result is a headline finding in its own right: 0 notes in 6
      smoke runs, and 1 after the explicit instruction.
+- **2026-11-09T04:05Z, Modal recap arm incomplete: the vLLM server hung (infrastructure, not an
+  outcome).** The Modal recap arm (59f10a6, code 16e71dab, 16 tasks x 2 runs, both runs at
+  once at concurrency 8) started at 03:11Z. At 03:27:32Z vLLM stopped writing anything, even
+  its periodic metrics, with 14 requests running, and GPU use fell to 0%. No task finished after
+  that. The last lines before the stop are context-length validation errors, which are normal
+  in these runs. The cause is not established. The run was stopped at 04:04Z.
+  - **Completed: 13 of 32 task-runs** (run 1: 6, run 2: 7, all requests tasks, the shortest).
+    They were recovered from the container. The other 19 are **not run**, not failures. ITT
+    counts assigned runs that ran, so these 19 must be rerun before any arm comparison.
+  - The 13 are a biased, short-task subset: they are reported descriptively, never as the
+    result.
+  - Lesson for any rerun: run 1 completes before run 2 starts (as the Kaggle cut rule above), and
+    a watchdog stops the eval and saves the finished tasks when vLLM's request counters stop
+    moving.
 
 ## 11. Stretch: rejection-sampling LoRA (exploratory, after the headline runs)
 
