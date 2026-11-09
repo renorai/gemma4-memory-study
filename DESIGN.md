@@ -703,6 +703,14 @@ dataset) and writes three push directories.
   pin and recorded below. The recap, recap_shuffled and node builds pass the harness's own
   `validate_directory` and compile with its `compile_submission` (adk-submission 0.2.13,
   google-adk 1.36.1); `notes.output_key` is `working_notes`.
+- **2026-11-09T02:40Z, the no-memory replay at the new pin.** kernels/replaycheck ran on Modal CPU:
+  pre ff9bf75d (code dee8321a, the Modal no-memory pin), post 8191199 (code 24bd5fb3), task
+  httpx_3672, one recorded throughput trace, the envcheck scorer env.
+  - Both trees sent 33 model requests and exited 0, and the `none` submissions are byte-identical.
+  - The requests are identical after masking. Besides the kernel's masks (sandbox paths,
+    durations, call ids), one more mask was needed: the harness's message "... not found in
+    sandbox <12-hex id>" carries a random sandbox id, which differed in 17 requests and in
+    nothing else.
 - **2026-11-09T02:20Z, pre-registered reported outcomes for the injected recap; written before
   any memory-arm result.** For every memory arm:
   - notes written per task (`notes_written`);
