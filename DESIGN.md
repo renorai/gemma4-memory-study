@@ -953,6 +953,9 @@ dataset) and writes three push directories.
      freeze commit 40f78b2f (04:47:55Z). An earlier chat message said "~05:25Z"; that was wrong.
      No smoke output or log was read before either commit; the kernel was still running when both
      were pushed. The detectors were written and frozen without seeing any recap-arm output.
+     The smoke ran only on the out-of-sample tuning tasks fastapi_14301 and rich_3063, and H-a/H-b
+     are tested on the 32 Kaggle replication tasks, so even the smoke starting 94 s before the
+     detector commit cannot contaminate the hypothesis tests.
   1. **Cap detector against the harness's real wording** (`stats/caps.py`, tested). The wording
      comes from the installed swegemma 0.2.11 source:
      - run errors: "Agent exceeded tool call budget (N calls)", "Agent exceeded session timeout
