@@ -6,22 +6,27 @@ scoring it as "memory did not help" (DESIGN.md section 10, 2026-11-09).
       skill_status            first status line of the first recall: "on", "off", "error" or None
                               (recall never ran)
       skill_error             the first `memory error:` line any graph-memory script printed, or None
-      notes_written           workmem `note` acknowledgements
+      notes_written           workmem `note` acknowledgements (written by the `notes` sub-agent)
       writes_in_task_dir      every note landed in ONE notes file inside the task's own tmp folder
                               (the file the status line named, under renor-notes/, not /workspace),
                               and the patch holds no notes or task file
-      recaps                  recap pages shown ("where was I"), on request or every 6th note
+      recaps                  notes pages returned to the coder (the `notes` tool's output, which
+                              its output_key injects into every later model call), plus any page
+                              the coder asked for directly
+      injected_share          share of compactions (stats/repeats.py:compaction_turns) at which a
+                              non-empty notes page was already in state, i.e. returned at an
+                              earlier root turn; None without compactions
       recall_runs_after_compaction
-                              after EACH compaction (stats/repeats.py:compaction_turns) a recap page
-                              was shown before the next compaction or the end; None without
-                              compactions
-      recap_tokens            tokens of all recap pages shown (memory/renor.py:count_tokens)
-      plumbing_failed         recap arms only: status not "on", a memory error, a write outside the
-                              task folder, or a compaction not followed by a recap; None elsewhere
+                              injected_share == 1: the page was shown after EACH compaction; None
+                              without compactions
+      recap_tokens            tokens of all pages returned (memory/renor.py:count_tokens)
+      recap_tokens_per_call   the same, per call, in order
+      plumbing_failed         recap arms only: status not "on", a memory error, no note, a write
+                              outside the task folder, or a compaction with no page injected;
+                              None elsewhere
 
-It reads the trace file itself because harness.swegemma.read_trace takes tool outputs from
-observation.results[], and the real swegemma traces carry a single tool output in
-observation.content; that shared reader is frozen, so this reader is the additive one.
+It reads the trace file itself (observation.results[] or observation.content), so it does not
+depend on the shared reader's version.
 """
 from __future__ import annotations
 
@@ -41,6 +46,8 @@ def _stdout(out):
         d = json.loads(out)
     except (TypeError, ValueError):
         return out or ""
+    if isinstance(d, dict) and "result" in d and isinstance(d["result"], str):   # an agent_tool's reply
+        return d["result"]
     if isinstance(d, dict) and ("stdout" in d or "stderr" in d):
         err = str(d.get("stderr") or "")
         return str(d.get("stdout") or "") + ("\n" + err if err else "")
@@ -90,11 +97,12 @@ def plumbing(trace_path, arm, patch=""):
     from stats.repeats import compaction_turns
     steps, root_pt = read_steps(trace_path)
     status, error, status_notes = None, None, None
-    acks, recap_turns, recap_tokens = [], [], 0
+    acks, page_turns, page_tokens = [], [], []
     for turn, name, args, out in steps:
         recall = _is_skill(name, args, "recall.py")
         wm = _is_skill(name, args, "workmem.py")
-        if not (recall or wm):
+        notes_tool = name == "notes" and turn is not None
+        if not (recall or wm or notes_tool):
             continue
         text = _stdout(out)
         first = text.strip().splitlines()[0] if text.strip() else ""
@@ -109,14 +117,15 @@ def plumbing(trace_path, arm, patch=""):
         if wm and first.startswith("noted #"):
             m = _NOTES_PATH.search(first)
             acks.append(m.group(1) if m else None)
-        if "where was I" in text:
-            recap_turns.append(turn)
-            recap_tokens += count_tokens(text[text.index("where was I"):])
+        if (notes_tool or (wm and turn is not None)) and "where was I" in text:
+            page_turns.append(turn)
+            page_tokens.append(count_tokens(text[text.index("where was I"):]))
     comps = compaction_turns(root_pt)
-    after = None
+    share = after = None
     if comps:
-        bounds = comps[1:] + [float("inf")]
-        after = all(any(t is not None and c <= t < b for t in recap_turns) for c, b in zip(comps, bounds))
+        hit = [any(t < c for t in page_turns) for c in comps]
+        share = sum(hit) / len(hit)
+        after = all(hit)
     files = set(acks)
     leaked = any(w in (patch or "") for w in ("renor-notes", "notes.jsonl", "task.md"))
     in_dir = bool(acks) and None not in files and len(files) == 1 and not leaked and all(
@@ -124,10 +133,11 @@ def plumbing(trace_path, arm, patch=""):
         for f in files)
     row = {"skill_status": status, "skill_error": error, "notes_written": len(acks),
            "notes_file": next(iter(files)) if len(files) == 1 else None,
-           "writes_in_task_dir": in_dir, "recaps": len(recap_turns),
-           "recall_runs_after_compaction": after, "recap_tokens": recap_tokens}
+           "writes_in_task_dir": in_dir, "recaps": len(page_turns), "injected_share": share,
+           "recall_runs_after_compaction": after, "recap_tokens": sum(page_tokens),
+           "recap_tokens_per_call": page_tokens}
     if arm in RECAP_ARMS:
-        row["plumbing_failed"] = bool(status != "on" or error or not in_dir or after is False)
+        row["plumbing_failed"] = bool(status != "on" or error or not acks or not in_dir or after is False)
     else:
         row["plumbing_failed"] = None
     return row

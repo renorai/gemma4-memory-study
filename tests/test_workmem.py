@@ -29,15 +29,16 @@ def tree(root):
             for p in sorted(root.rglob("*")) if p.is_file()}
 
 
-def note_protocol(prompt):
-    """The note and recap arguments, read from the shipped prompt (so the tests use the
-    instructions the model is given)."""
-    sec = prompt[prompt.index("## Working notes"):]
-    note = re.search(r'`file_path` "([^"]+)", `args` (\["note"[^\]]*\])', sec)
-    recap = re.search(r'`args` (\["recap"[^\]]*\])', sec)
-    if not note or not recap:
-        raise AssertionError("working-notes section lost its note or recap arguments")
-    return note.group(1), json.loads(note.group(2)), json.loads(recap.group(1))
+def note_protocol(sub):
+    """The note call, read from the built `notes` sub-agent (sub_agents/notes.yaml), which makes it
+    for the coder since automatic recall (DESIGN.md section 10, 2026-11-09). The coder no longer
+    asks for a recap (the page is injected); `recap` stays a workmem op."""
+    text = (Path(sub) / "sub_agents" / "notes.yaml").read_text()
+    script = re.search(r'`file_path`\s+"([^"]+)"', text)
+    note = re.search(r'`args` (\["note"[^\]]*\])', text)
+    if not script or not note:
+        raise AssertionError("notes sub-agent lost its script or its note arguments")
+    return script.group(1), json.loads(note.group(1)), ["recap"]
 
 
 class Unit(unittest.TestCase):
@@ -236,7 +237,7 @@ class FakeHarness(unittest.TestCase):
         self.report = build(self.ARM, LessonStore([]), ALIAS, self.sub)
         self.box = fh.Sandbox(self.sub, d / "repos" / "alpha", d / "box")
         self.ws_before, self.sub_before = tree(self.box.workspace), tree(self.sub)
-        self.script, self.note_args, self.recap_args = note_protocol(self.box.prompt)
+        self.script, self.note_args, self.recap_args = note_protocol(self.sub)
         self.real_tmp_before = os.path.exists("/tmp/renor-notes")
 
     def tearDown(self):
@@ -249,7 +250,7 @@ class FakeHarness(unittest.TestCase):
 
     def note(self, kind, about, text):
         a = list(self.note_args)
-        a[a.index("--kind") + 1], a[a.index("--about") + 1], a[-1] = kind, about, text
+        a[-1] = f"{kind} {about}: {text}"          # the one line the coder gives the notes tool
         return self.wm(a)
 
     def test_build_is_valid_and_prompt_names_the_shipped_script(self):

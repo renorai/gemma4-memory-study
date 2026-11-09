@@ -40,6 +40,13 @@ DEFAULT_SKILL_DIR = "skills/graph-memory"
 LESSONLESS_ARMS = ("recap", "recap_shuffled")
 SKILL_NAME = "graph-memory"
 MARKER = "<!-- MEMORY -->\n"
+# Memory arms only (DESIGN.md section 10, 2026-11-09, automatic recall): the `notes` sub-agent,
+# whose output_key puts the notes page into session state for the coder's {working_notes?}.
+NOTES_AGENT = ROOT / "memory" / "notes_agent.yaml"
+EXPLORER_TOOL = "  - agent_tool:\n      config_path: sub_agents/explorer.yaml\n"
+NOTES_TOOL = ("  - agent_tool:                      # memory arms only: saves a note, returns the page\n"
+              "      config_path: sub_agents/notes.yaml\n"
+              "      skip_summarization: true\n")
 
 
 def _declare_skill(text, skill_dir):
@@ -47,6 +54,17 @@ def _declare_skill(text, skill_dir):
     if any(line.startswith("skills:") for line in text.splitlines()):
         raise ValueError("template agent.yaml already declares skills")
     return text.rstrip("\n") + f"\nskills:                             # graph-memory, memory arms only\n  - {skill_dir}\n"
+
+
+def _add_notes_tool(text):
+    """Add the notes agent_tool right after the explorer's entry in the coder's tools list."""
+    i = text.find(EXPLORER_TOOL)
+    if i < 0:
+        raise ValueError("template agent.yaml lost its explorer agent_tool")
+    j = i + len(EXPLORER_TOOL)
+    while j < len(text) and text.startswith("      ", j):          # the rest of the explorer entry
+        j = text.index("\n", j) + 1
+    return text[:j] + NOTES_TOOL + text[j:]
 
 
 def _set_model(text, model):
@@ -73,8 +91,11 @@ def build(arm, lessons, model, out, *, exclude_repos=(), source_model=None,
     for rel in ("agent.yaml", "sub_agents/explorer.yaml"):
         text = _set_model((TEMPLATE / rel).read_text(encoding="utf-8"), model)
         if rel == "agent.yaml" and arm != "none":
-            text = _declare_skill(text, skill_dir)
+            text = _declare_skill(_add_notes_tool(text), skill_dir)
         (out / rel).write_text(text, encoding="utf-8")
+    if arm != "none":
+        notes = _set_model(NOTES_AGENT.read_text(encoding="utf-8"), model).replace("SKILL_DIR", skill_dir)
+        (out / "sub_agents" / "notes.yaml").write_text(notes, encoding="utf-8")
     shutil.copyfile(TEMPLATE / "eval_config.yaml", out / "eval_config.yaml")
     coder = (TEMPLATE / "prompts" / "coder.md").read_text(encoding="utf-8")
     if MARKER not in coder:

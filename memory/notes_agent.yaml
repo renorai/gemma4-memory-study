@@ -1,0 +1,24 @@
+# The `notes` sub-agent of the memory arms (runner/build_submission.py writes it to
+# sub_agents/notes.yaml and lists it as an agent_tool of the coder; the no-memory arm has neither).
+# It saves one working note and replies with the notes page; output_key puts that page into session
+# state, and the coder's instruction shows it on every model call as {working_notes?}
+# (runner/prompt_parts/memory.md). DESIGN.md section 10, 2026-11-09: automatic recall.
+agent_class: LlmAgent
+name: notes
+model: gemma-4-31b-it-qat-w4a16-ct
+description: >-
+  Saves one short working note and returns your updated notes page. Input is one line: a kind,
+  then the symbol or file, then the note, for example
+  "failed Client.send: moving the header after _transport changed nothing".
+instruction: |
+  You save one working note for the coder. The request is one line: a kind (hypothesis, edit,
+  failed, tried, decision or next), then what it is about, then a short sentence.
+
+  Make exactly one call: `run_skill_script` with `skill_name` "graph-memory", `file_path`
+  "scripts/memory/workmem.py" and `args` ["note", "--page", "<the request line, unchanged>"].
+
+  Then reply with the script's output exactly as printed, every line, and nothing else. Do not add,
+  remove, summarize or explain anything. If the script printed an error, reply with that error.
+output_key: working_notes
+skills:
+  - SKILL_DIR

@@ -22,13 +22,16 @@ The skill's scripts run only through `run_skill_script`; do not look for copies 
 
 The first line every recall prints is a status line:
 - `working notes: on (...)`: this run keeps working notes instead of lessons. Follow "Working notes" below for the whole task.
-- `working notes: off (...)`: this run has lessons; do not use workmem.py.
+- `working notes: off (...)`: this run has lessons; do not use the `notes` tool.
 - `memory error: ...`: run the same `run_skill_script` call once more, exactly as written above. If the error repeats, continue the task without memory; the error is already recorded in your history.
 
 ## Working notes
 
-The harness compacts your history when it grows past about 14k tokens: your earlier steps are replaced by a short summary, and the details are gone. Keep short working notes so you can pick up where you were. They are written under /tmp, never in your patch.
+The harness compacts your history when it grows past about 14k tokens: your earlier steps are replaced by a short summary, and the details are gone. Working notes keep what you need. They are written under /tmp, never in your patch.
 
-- After each meaningful step, record one note with `run_skill_script`: `skill_name` "graph-memory", `file_path` "scripts/memory/workmem.py", `args` ["note", "--kind", "failed", "--about", "Client.send", "one sentence"]. Kinds: `hypothesis` (what you now think the cause is), `edit` (a file you changed and how), `failed` (what did not work, and why), `tried` (a command or check you ran, and its result), `decision`, `next` (your next step). `--about` takes the symbol or file the note is about. One sentence, under 40 words.
-- Call recap, `args` ["recap", "--focus", "Client.send"] with the symbol you are working on, when your history starts with a summary of earlier work instead of your own tool calls, and before you re-read a file, rerun a command or re-ask `explorer` something you may already have done. Every 6th note also prints the recap.
-- The recap lists the goal, your current hypothesis, the next step, files you edited and attempts that failed. Do not repeat a failed attempt. Trust the recap over the summary for these details.
+- After every `explorer` answer and after every edit, call the `notes` tool with one line: a kind, then the symbol or file, then at most 15 words. Example: `failed Client.send: moving the header after _transport changed nothing`. Kinds: `hypothesis` (what you now think the cause is), `edit` (a file you changed and how), `failed` (what did not work, and why), `tried` (a check you ran, and its result), `decision`, `next` (your next step).
+- Your notes page appears below, under "Your notes page". It is updated by every `notes` call and shown to you on every turn, also right after a compaction. After a compaction, read it before you act: do not repeat an attempt it lists as failed, and do not re-read a file or re-ask `explorer` for something it already records.
+
+### Your notes page
+
+{working_notes?}

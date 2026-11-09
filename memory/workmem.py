@@ -74,6 +74,7 @@ else:  # run as a script: scripts/memory/workmem.py, its siblings importable by 
 DEFAULT_DIR = "/tmp/renor-notes"      # + "/<task key>" (task_paths); /tmp is the TASK's tmp
 DEFAULT_TASK_FILE = "/tmp/task.md"
 DEFAULT_BUDGET = 600
+INJECT_BUDGET = 1500    # the page the notes sub-agent returns into session state (injected every turn)
 DEFAULT_EVERY = 6
 RECAP_ARMS = ("recap", "recap_shuffled")
 CONTROL_SEED = 20261107
@@ -390,6 +391,47 @@ def page(notes, focus="", budget=DEFAULT_BUDGET, task_text="", label="working no
     return text, kept
 
 
+# --- the injected page (automatic recall) -------------------------------------------------------
+#
+# Recap arms inject the notes page into the coder's instruction on every model call: the `notes`
+# sub-agent (memory/notes_agent.yaml) runs `note ... --page`, replies with this page, and its
+# output_key puts the page into session state, which the coder's instruction reads as
+# {working_notes?}. So recall after a compaction no longer depends on the agent asking for it.
+
+def inject_page(notes, task_text="", budget=INJECT_BUDGET, label="working notes"):
+    """Every current note, grouped as in the recap (newest first within a part), cut to `budget`
+    tokens by dropping the OLDEST notes first. Returns the page text."""
+    goal = goal_of(task_text)
+    kept = sorted(live(notes), key=lambda x: x["n"])
+    header = f"where was I ({label}: {len(live(notes)) if notes else 0} current of {len(notes)}; injected every turn)"
+
+    def render(xs):
+        items = []
+        for kind in KINDS:
+            items += [(SECTION_OF[kind], x) for x in sorted((x for x in xs if x["kind"] == kind),
+                                                             key=lambda x: -x["n"])]
+        text = _render(goal, items, header)
+        dropped = len(live(notes)) - len(xs) if notes else 0
+        if dropped:
+            text += f"\n(+{dropped} older notes dropped to fit)"
+        return text if xs else text + "\n(no notes yet)"
+    text = render(kept)
+    while kept and renor.count_tokens(text) > budget:
+        kept = kept[1:]
+        text = render(kept)
+    return text
+
+
+def control_inject(notes, task_text, repo=None, donors=None, budget=INJECT_BUDGET):
+    """recap_shuffled: the same injection, with ANOTHER task's notes ("misleading memory"): as many
+    donor notes as the agent has current notes of its own, under the same token cap. The goal line
+    stays the agent's own."""
+    pool = donor_notes(task_hash(task_text), repo, donors)
+    if not pool:
+        return "where was I: unavailable (no donor notes shipped with this control)"
+    return inject_page(pool[:max(1, len(live(notes)))], task_text, budget)
+
+
 # --- control: notes from another task ------------------------------------------------------------
 
 def task_hash(task_text):
@@ -486,6 +528,8 @@ def parse(argv):
             op = a
         elif a in ("--about", "--file", "--focus", "--symbol"):
             opts["about" if a == "--symbol" else a[2:]].append(next(it, ""))   # recap reads both
+        elif a == "--page":
+            opts["page"] = True
         elif a.startswith("--") and a[2:] in ("kind", "dir", "task-file", "budget", "repo", "text", "op", "every"):
             opts[a[2:]] = next(it, "")
         else:
@@ -528,13 +572,26 @@ def main(argv=None, config=None):
             if not text:
                 print("nothing noted: give one sentence, e.g. note --kind failed --about Client.send \"...\"")
                 return 0
-            note = make_note((notes[-1]["n"] + 1) if notes else 1, o.get("kind"), text, _split(o["about"]), _split(o["file"]))
+            kind = o.get("kind")
+            if not kind:     # "failed Client.send: ..." -- the notes sub-agent passes the line as given
+                first = text.split(None, 1)[0].strip(":,-").lower() if text.split() else ""
+                if first in KINDS or first in ALIASES:
+                    kind, text = first, (text.split(None, 1)[1] if len(text.split(None, 1)) > 1 else "")
+                    m = re.match(r"^([\w./()-]+):\s+(.+)$", text, re.S)   # "<symbol or file>: <sentence>"
+                    if m and not o["about"] and not o["file"]:
+                        o["about"].append(m.group(1))
+                        text = m.group(2)
+            note = make_note((notes[-1]["n"] + 1) if notes else 1, kind, text, _split(o["about"]), _split(o["file"]))
             append(dir_, note)
             notes.append(note)
             keys = ", ".join(note["about"] + note["files"])[:80]
             print(f"noted #{note['n']} ({note['kind']}{': ' + keys if keys else ''}) "
                   f"[{os.path.join(dir_, 'notes.jsonl')}]")
-            if every > 0 and note["n"] % every == 0:
+            if o.get("page"):
+                ib = _int(cfg.get("inject_budget"), INJECT_BUDGET)
+                print(control_inject(notes, task_text, repo=repo, budget=ib) if control
+                      else inject_page(notes, task_text, ib))
+            elif every > 0 and note["n"] % every == 0:
                 print(show(" ".join(note["about"] + note["files"])))
             return 0
         if op == "status":

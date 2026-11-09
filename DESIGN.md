@@ -673,6 +673,50 @@ dataset) and writes three push directories.
   over the 105 valid tasks; its first 48 equal the published subset). Tuning is limited to at
   most 2 rounds, and its pass bar is `plumbing_failed` false on both tasks. The prompt is then
   frozen, and the change is recorded here.
+- **2026-11-09T02:20Z, mechanism move: automatic recall is the recap arm, and the freeze moves;
+  decided on smoke adherence, before any memory-arm result.** The reason is adherence, not
+  outcomes. In 3 recap checks (6 agent runs, ff9bf75d, ff43737 and 765dbb0), no run wrote a single
+  note. At most one per check reached the skill, and none saw a recap after a compaction. Asking
+  the agent to fetch its recap does not work for this model. The submission format offers an
+  automatic path, and the recap arm now uses it:
+  - A `notes` sub-agent (memory/notes_agent.yaml, written to sub_agents/notes.yaml) is an
+    agent_tool of the coder in memory arms only. The coder gives it one line. It runs
+    `workmem.py note --page` and replies with the notes page. Its `output_key: working_notes`
+    puts the page into session state.
+  - The coder's instruction (runner/prompt_parts/memory.md) ends with `{working_notes?}`. ADK
+    fills it from session state on every model call (HARNESS_README section 5.1, `output_key`
+    variables), so the page is shown after every compaction without being asked for. Before the
+    first note it is empty.
+  - The page holds every current note, newest first within a part, capped at 1,500 tokens by
+    dropping the oldest notes first (`inject_budget` in config.yaml). memory/plumbing.py logs
+    its tokens per call (`recap_tokens_per_call`).
+  - The agent still has to write notes; the prompt asks for one `notes` call after every
+    `explorer` answer and every edit. Recall no longer depends on adherence.
+  - The cost: every note adds a sub-agent run (about 2 model calls), and every note changes the
+    instruction, so the prompt prefix cache is lost from that point.
+  Freeze move: runner/build_submission.py adds the sub-agent for memory arms only, and
+  runner/validate.py accepts `{key?}` in a prompt only for a key that one of the submission's
+  agents writes with `output_key`, and only in a memory arm. The no-memory build is unchanged:
+  `tests/test_none_build_identity.py` builds `none` with this tree, with 824dc84 (the frozen
+  baseline) and with ff9bf75d (the Modal no-memory pin), for both model aliases, and requires
+  byte-identical files. The CPU replay of the no-memory arm's model requests is rerun at the new
+  pin and recorded below. The recap, recap_shuffled and node builds pass the harness's own
+  `validate_directory` and compile with its `compile_submission` (adk-submission 0.2.13,
+  google-adk 1.36.1); `notes.output_key` is `working_notes`.
+- **2026-11-09T02:20Z, pre-registered reported outcomes for the injected recap; written before
+  any memory-arm result.** For every memory arm:
+  - notes written per task (`notes_written`);
+  - the share of compactions at which the injected page was non-empty (`injected_share`: a page
+    returned at an earlier coder turn);
+  - the tokens of each injected page.
+  Fallback, allowed only as a recorded mechanism move before any outcome: if the out-of-sample
+  smoke shows near-zero note writes, the explorer sub-agent also gets an `output_key`, so its
+  last finding lands in state automatically and is injected the same way.
+- **2026-11-09T02:20Z, `recap_shuffled` is a "misleading memory" control.** It uses the same
+  injection, but the page holds ANOTHER task's notes (memory/recap_donors.py), as many as the
+  agent's own current notes, under the same cap. The goal line stays the agent's own. It is not a
+  neutral placebo: it tests whether wrong state hurts. A neutral-page arm is added only if the
+  budget clearly allows it after the headline.
 
 ## 11. Stretch: rejection-sampling LoRA (exploratory, after the headline runs)
 

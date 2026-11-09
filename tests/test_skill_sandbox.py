@@ -34,11 +34,11 @@ def tree(root):
     return sorted(p.relative_to(root).as_posix() for p in root.rglob("*") if p.is_file())
 
 
-def note_args(prompt):
-    sec = prompt[prompt.index("## Working notes"):]
-    note = re.search(r'`file_path` "([^"]+)", `args` (\["note"[^\]]*\])', sec)
-    recap = re.search(r'`args` (\["recap"[^\]]*\])', sec)
-    return note.group(1), json.loads(note.group(2)), json.loads(recap.group(1))
+def note_args(sub):
+    """The notes sub-agent's call (built sub_agents/notes.yaml): script and argument template."""
+    text = (Path(sub) / "sub_agents" / "notes.yaml").read_text()
+    script = re.search(r'`file_path`\s+"([^"]+)"', text).group(1)
+    return script, json.loads(re.search(r'`args` (\["note"[^\]]*\])', text).group(1)), ["recap"]
 
 
 class Base(unittest.TestCase):
@@ -65,13 +65,13 @@ class Base(unittest.TestCase):
         return fh.Sandbox(self.sub, self.d / "repos" / "alpha", self.d / name, mode=mode)
 
     def note(self, box, kind, about, text):
-        script, args, _ = note_args(box.prompt)
+        script, args, _ = note_args(self.sub)
         a = list(args)
-        a[a.index("--kind") + 1], a[a.index("--about") + 1], a[-1] = kind, about, text
+        a[-1] = f"{kind} {about}: {text}"
         return box.run_skill_script("graph-memory", script, a)
 
     def recap(self, box):
-        script, _, args = note_args(box.prompt)
+        script, _, args = note_args(self.sub)
         return box.run_skill_script("graph-memory", script, list(args))
 
 
@@ -168,60 +168,115 @@ class Prompt(unittest.TestCase):
 
 def _trace(path, calls, prompt_tokens):
     """An ATIF trace in the shape the real harness writes: one tool call per step, its output in
-    observation.content (harness.swegemma.read_trace reads only observation.results[])."""
+    observation.content. `calls` are (author, tool, args, output); `prompt_tokens` holds one value
+    per coder step (sub-agent steps are not coder turns)."""
     steps = [{"step_id": 1, "source": "user", "message": "issue"}]
-    for i, ((tool, args, out), pt) in enumerate(zip(calls, prompt_tokens), 2):
-        steps.append({"step_id": i, "source": "agent", "extra": {"author": "coder"},
+    pts = iter(prompt_tokens)
+    for i, (author, tool, args, out) in enumerate(calls, 2):
+        pt = next(pts) if author == "coder" else 500
+        if tool == "run_skill_script":
+            content = json.dumps({"stdout": out, "status": "success"})
+        elif tool == "notes":
+            content = json.dumps({"result": out})
+        else:
+            content = out
+        steps.append({"step_id": i, "source": "agent", "extra": {"author": author},
                       "tool_calls": [{"tool_call_id": f"c{i}", "function_name": tool, "arguments": args}],
-                      "observation": {"content": json.dumps({"stdout": out, "status": "success"})
-                                      if tool == "run_skill_script" else out},
+                      "observation": {"content": content},
                       "metrics": {"prompt_tokens": pt, "completion_tokens": 10}})
     Path(path).write_text(json.dumps({"steps": steps}))
     return path
 
 
 class PlumbingAssertions(Base):
-    def calls(self, box, recap_at_end=True):
-        out = list(fh.follow_memory_protocol(box, ISSUE))
-        script, args, rargs = note_args(box.prompt)
-        for k in range(3):
+    """Automatic recall: the coder calls the `notes` tool; the sub-agent runs workmem `note --page`
+    (acks in the sub-agent's steps) and returns the page, which output_key injects from then on."""
+
+    def calls(self, box, notes_before_compaction=True):
+        out = [("coder",) + c for c in fh.follow_memory_protocol(box, ISSUE)]
+        script, args, _ = note_args(self.sub)
+        for k in range(2 if notes_before_compaction else 0):
             a = list(args)
-            a[a.index("--kind") + 1], a[a.index("--about") + 1], a[-1] = "tried", "Client.send", f"check {k}"
-            out.append(("run_skill_script", {"skill_name": "graph-memory", "file_path": script, "args": a},
-                        box.run_skill_script("graph-memory", script, a)))
-        out.append(("run_command", {"command": "ls"}, "x"))
-        if recap_at_end:
-            out.append(("run_skill_script", {"skill_name": "graph-memory", "file_path": script, "args": rargs},
-                        box.run_skill_script("graph-memory", script, rargs)))
-        else:
-            out.append(("run_command", {"command": "ls"}, "x"))
+            a[-1] = f"tried Client.send: check {k}"
+            page = box.run_skill_script("graph-memory", script, a)
+            out.append(("notes", "run_skill_script",
+                        {"skill_name": "graph-memory", "file_path": script, "args": a}, page))
+            out.append(("coder", "notes", {"request": a[-1]}, page.split("\n", 1)[1]))
+        while sum(1 for c in out if c[0] == "coder") < 7:
+            out.append(("coder", "run_command", {"command": "ls"}, "x"))
         return out
 
-    def test_a_working_run_passes_and_a_missed_recap_fails(self):
+    def test_injected_page_before_each_compaction(self):
         box = self.box("box")
-        pts = [9000, 10000, 11000, 12000, 13000, 4000, 4500]          # compaction at the 6th turn
+        pts = [9000, 10000, 11000, 12000, 13000, 4000, 4500]          # compaction at coder turn 5
         ok = plumbing(_trace(self.d / "ok.json", self.calls(box), pts), "recap")
         self.assertEqual(ok["skill_status"], "on")
         self.assertTrue(ok["writes_in_task_dir"])
-        self.assertEqual(ok["notes_written"], 3)
+        self.assertEqual(ok["notes_written"], 2)
+        self.assertEqual(ok["injected_share"], 1.0)
         self.assertTrue(ok["recall_runs_after_compaction"])
-        self.assertGreater(ok["recap_tokens"], 0)
-        self.assertLessEqual(ok["recap_tokens"], 600)
+        self.assertEqual(len(ok["recap_tokens_per_call"]), 2)
+        self.assertTrue(all(0 < t <= 1500 for t in ok["recap_tokens_per_call"]))
         self.assertFalse(ok["plumbing_failed"])
-        box2 = self.box("box2")
-        miss = plumbing(_trace(self.d / "miss.json", self.calls(box2, recap_at_end=False), pts), "recap")
+
+    def test_no_note_before_the_compaction_is_flagged(self):
+        box = self.box("box")
+        pts = [9000, 10000, 11000, 12000, 13000, 4000, 4500]
+        miss = plumbing(_trace(self.d / "miss.json", self.calls(box, notes_before_compaction=False), pts),
+                        "recap")
+        self.assertEqual(miss["notes_written"], 0)
         self.assertIs(miss["recall_runs_after_compaction"], False)
         self.assertTrue(miss["plumbing_failed"])
 
     def test_the_9_nov_failure_is_flagged(self):
-        calls = [("run_skill_script", {"skill_name": "graph-memory", "file_path": "scripts/recall.py",
-                                       "args": ["--task-file", "/tmp/task.md", "--repo", "/workspace"]},
+        calls = [("coder", "run_skill_script", {"skill_name": "graph-memory", "file_path": "scripts/recall.py",
+                                                "args": ["--task-file", "/tmp/task.md", "--repo", "/workspace"]},
                   "memory unavailable (no repository at /workspace; pass --repo)")]
         row = plumbing(_trace(self.d / "old.json", calls, [5000]), "recap")
         self.assertIsNone(row["skill_status"])
         self.assertEqual(row["notes_written"], 0)
         self.assertTrue(row["plumbing_failed"])
         self.assertIsNone(plumbing(_trace(self.d / "none.json", calls, [5000]), "none")["plumbing_failed"])
+
+
+class InjectedPage(Base):
+    def test_page_is_capped_oldest_first(self):
+        from memory import workmem as W
+        notes = [W.make_note(i, "tried", f"check number {i} " + "word " * 25) for i in range(1, 120)]
+        page = W.inject_page(notes, ISSUE, 1500)
+        self.assertLessEqual(renor.count_tokens(page), 1500)
+        self.assertIn("check number 119", page)                    # newest kept
+        self.assertNotIn("check number 1 ", page)                  # oldest dropped first
+        self.assertIn("older notes dropped", page)
+
+    def test_note_line_with_leading_kind_returns_the_page(self):
+        box = self.box("box")
+        list(fh.follow_memory_protocol(box, ISSUE))
+        out = self.note(box, "failed", "Client.send", "moving the header changed nothing")
+        self.assertTrue(out.startswith("noted #1 (failed: Client.send)"), out)
+        self.assertIn("where was I", out)                          # --page: the page follows the ack
+        self.assertIn("Failed", out)
+
+
+class ShuffledControlInjection(Base):
+    ARM = "recap_shuffled"
+
+    def test_the_control_injects_another_tasks_notes(self):
+        from memory import workmem as W
+        pool = [{"task": "other", "task_hash": W.task_hash("Parser emits tokens twice\n"),
+                 "notes": [{"kind": "failed", "text": "the lexer cache double-counts tokens",
+                            "about": ["Lexer.next"], "files": []}]},
+                {"task": "third", "task_hash": W.task_hash("Pool leaks connections\n"),
+                 "notes": [{"kind": "hypothesis", "text": "release() skips closed sockets",
+                            "about": ["Pool.release"], "files": []}]}]
+        W.write_donor_module(pool, self.sub / "skills/graph-memory/scripts/memory/recap_donors.py")
+        box = self.box("box")
+        list(fh.follow_memory_protocol(box, ISSUE))
+        out = self.note(box, "failed", "Client.send", "moving the header changed nothing")
+        self.assertTrue(out.startswith("noted #1"), out)
+        page = out.split("\n", 1)[1]
+        self.assertNotIn("moving the header", page)               # never the agent's own notes
+        self.assertTrue("lexer cache" in page or "release() skips" in page, page)
 
 
 if __name__ == "__main__":

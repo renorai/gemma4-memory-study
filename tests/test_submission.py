@@ -13,6 +13,7 @@ from unittest import mock
 import fake_harness as fh
 import runner.validate as V
 from memory import ARMS, SHIPPED, Lesson, LessonStore
+import runner.build_submission as B
 from runner.build_submission import build
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -62,7 +63,11 @@ class BuiltArms(unittest.TestCase):
             self.assertEqual(V.declared_skills((self.d / arm / "agent.yaml").read_text()), ["skills/graph-memory"])
             # everything outside the skill section of agent.yaml is identical to the no-memory arm
             text = (self.d / arm / "agent.yaml").read_text()
+            self.assertIn(B.NOTES_TOOL, text)          # memory arms only: the notes sub-agent
+            text = text.replace(B.NOTES_TOOL, "")
             self.assertEqual(text[: text.index("\nskills:")] + "\n", (self.d / "none" / "agent.yaml").read_text())
+            self.assertTrue((self.d / arm / "sub_agents" / "notes.yaml").is_file())
+        self.assertFalse((self.d / "none" / "sub_agents" / "notes.yaml").exists())
 
     def test_prompts_differ_only_by_the_memory_section(self):
         none = (self.d / "none" / "prompts" / "coder.md").read_text()
@@ -109,7 +114,7 @@ class BuiltArms(unittest.TestCase):
                             "--symbol", "nothing_here"], cwd=repos / "beta", capture_output=True, text=True, env=env)
         # a status line first (recall.py: a broken setup must be visible in the trace), then the page
         self.assertEqual(r.stdout.strip().splitlines(),
-                         ["working notes: off (this run has lessons, not notes: do not call workmem.py)",
+                         ["working notes: off (this run has lessons, not notes: do not use the notes tool)",
                           "no lessons for this code"])
 
     def test_build_refuses_bad_inputs(self):
@@ -198,8 +203,10 @@ class ValidatorRules(unittest.TestCase):
         y = self.root / "sub_agents" / "explorer.yaml"
         y.write_text(y.read_text().replace(ALIAS, "gemma-4-31b-it-qat-w4a16-ct"))
         self.assertIn("exactly one base model", self.errors())
-        for f in ("agent.yaml", "sub_agents/explorer.yaml"):
+        for f in ("agent.yaml", "sub_agents/explorer.yaml", "sub_agents/notes.yaml"):
             p = self.root / f
+            if not p.exists():
+                continue
             p.write_text(p.read_text().replace(ALIAS, "gemma-4-31b-it").replace("gemma-4-31b-it-qat-w4a16-ct", "gemma-4-31b-it"))
         self.assertIn("not one of the four harness aliases", self.errors())
 

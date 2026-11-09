@@ -14,7 +14,10 @@ Rules checked (each is a sentence of the guide, or our own guard where marked):
 6. agent.yaml exists at the root.
 7. Our guard: no unfilled build placeholders (`{{...}}`, `<!-- MEMORY -->`) and no ADK state
    placeholder in a prompt other than {problem_description} and {hints} (an unknown one would
-   fail at run time, or silently stay literal).
+   fail at run time, or silently stay literal). Memory arms only (agent.yaml declares skills):
+   also a key that one of the submission's agents writes with `output_key`, and only in the
+   optional form {key?}, which is empty until that agent has run (the notes page, {working_notes?};
+   DESIGN.md section 10, 2026-11-09).
 8. Skills (first real Kaggle run, 8 Nov: an undeclared skill was never loaded): every
    skills/<name>/ folder is declared in agent.yaml's top-level `skills:` list, and every entry
    there is a relative folder inside the submission holding a SKILL.md whose frontmatter
@@ -47,6 +50,8 @@ _FRONT_NAME = re.compile(r"\A---\s*\n(?:.*\n)*?name:\s*['\"]?([A-Za-z0-9_-]+)", 
 SKILL_SUBDIRS = {"scripts", "assets", "references"}
 _KEBAB = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*\Z")
 _STATE = re.compile(r"(?<!\{)\{([A-Za-z_][A-Za-z0-9_:.]*)\??\}(?!\})")
+_STATE_FORM = re.compile(r"(?<!\{)\{([A-Za-z_][A-Za-z0-9_:.]*)(\??)\}(?!\})")
+_OUTPUT_KEY = re.compile(r"^output_key:\s*['\"]?([A-Za-z_][A-Za-z0-9_]*)", re.M)
 
 
 def _inside(root, target):
@@ -178,10 +183,21 @@ def validate(root):
             text = p.read_text(encoding="utf-8")
             if "{{" in text or "<!-- MEMORY -->" in text:
                 errors.append(f"{p.relative_to(root)}: unfilled build placeholder")
+    memory_keys = set()
+    agent_yaml = root / "agent.yaml"
+    if agent_yaml.is_file() and declared_skills(agent_yaml.read_text(encoding="utf-8")):
+        for p in sorted(list(root.rglob("*.yaml")) + list(root.rglob("*.yml"))):
+            memory_keys.update(_OUTPUT_KEY.findall(p.read_text(encoding="utf-8")))
     for p in sorted(prompt_files):
-        for key in _STATE.findall(p.read_text(encoding="utf-8")):
-            if key not in STATE_KEYS:
-                errors.append(f"{p.relative_to(root)}: unknown state placeholder {{{key}}}")
+        for key, optional in _STATE_FORM.findall(p.read_text(encoding="utf-8")):
+            if key in STATE_KEYS:
+                continue
+            if key in memory_keys and optional:
+                continue
+            what = "must be written {%s?} (empty until its agent runs)" % key if key in memory_keys else \
+                "unknown state placeholder"
+            errors.append(f"{p.relative_to(root)}: {what} {{{key}}}" if key not in memory_keys
+                          else f"{p.relative_to(root)}: state placeholder {what}")
     return {"ok": not errors, "errors": errors, "files": files, "bytes": total,
             "model": sorted(models)[0] if len(models) == 1 else None}
 

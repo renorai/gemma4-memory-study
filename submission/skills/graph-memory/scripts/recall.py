@@ -39,11 +39,13 @@ if HERE not in sys.path:
 from memory import LessonStore, RepoIndex, RetrievalConfig, make_arm, render  # noqa: E402
 from memory.workmem import status_line, task_path, task_paths  # noqa: E402
 
-INT_FIELDS = {"k", "token_budget", "per_task_cap", "n_seeds", "hops", "max_region", "recap_budget", "recap_every"}
+INT_FIELDS = {"k", "token_budget", "per_task_cap", "n_seeds", "hops", "max_region", "recap_budget", "recap_every",
+              "inject_budget"}
 RECAP_ARMS = ("recap", "recap_shuffled")
 NOTES_ON = ("This run has no lessons; do not call recall.py again. "
-            "Follow 'Working notes' in your instructions: scripts/memory/workmem.py note / recap.")
-NOTES_OFF = "working notes: off (this run has lessons, not notes: do not call workmem.py)"
+            "Follow 'Working notes' in your instructions: one `notes` call after every explorer answer "
+            "and every edit; your notes page is shown to you on every turn.")
+NOTES_OFF = "working notes: off (this run has lessons, not notes: do not use the notes tool)"
 FLOAT_FIELDS = {"hop_decay", "bm25_k1", "bm25_b"}
 
 

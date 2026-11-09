@@ -51,6 +51,7 @@ class RetrievalConfig:
     bm25_b: float = 0.75        # Renor's keyword lane (FTS5 bm25 constants), every memory arm
     recap_budget: int = 600     # recap arms only: tokens per "where was I" page (memory/workmem.py)
     recap_every: int = 6        # recap arms only: every n-th note also prints the recap (0: never)
+    inject_budget: int = 1500   # recap arms only: tokens of the page injected every turn (oldest notes cut first)
 
 
 @dataclass(frozen=True)
