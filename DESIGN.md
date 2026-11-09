@@ -1025,6 +1025,43 @@ dataset) and writes three push directories.
   - They are used otherwise only in the post-hoc descriptive discordant-pair table, flagged there.
   - `results/analyze_rows.py` asserts that every registered figure is identical with and without
     them, and `tests/test_results_analysis.py` checks it.
+- **2026-11-09T10:47Z, EXTENSION pre-registration, written before any extension row exists.** AWS granted
+  8 vCPU of G spot: one g6e.2xlarge (1x L40S), backend value `aws-l40s`.
+  1. **Extension set: 50 tasks.** These are the valid tasks (of the 105, envcheck v3) outside
+     the 48, in seed order (seed 20261107) (file `results/extension_tasks.txt`). Excluded first:
+     - recap tuning and smoke: fastapi_14301 and rich_3063 (Modal rounds 1-2, Kaggle smoke);
+     - the throughput shard's tasks outside the 48: rich_3535, rich_4076, fastapi_14953,
+       fastapi_15661 and fastapi_15280. Their no-memory traces motivated the recap arm.
+
+     The replay task (httpx_3672) and the Modal recap check tasks (fastapi_14487, fastapi_14873)
+     are already in the 48. No other task appears in the tuning, smoke, replay or check outputs.
+     The set is fastapi 26 and rich 24:
+     rich_3469, rich_3480, rich_3905, rich_3471, rich_3938, rich_3180, fastapi_14479,
+     rich_3882, fastapi_13207, rich_4077, rich_3718, fastapi_5077, rich_3470, fastapi_14794,
+     rich_3953, fastapi_14430, rich_3777, fastapi_14360, rich_3942, rich_4075, fastapi_14448,
+     rich_4070, fastapi_9753, rich_3675, fastapi_14786, rich_3944, fastapi_14583, rich_3930,
+     fastapi_13920, rich_3468, fastapi_12942, fastapi_14297, rich_3296, fastapi_14306,
+     rich_2943, fastapi_14492, rich_3130, rich_3067, rich_3935, fastapi_15030, fastapi_13786,
+     fastapi_14371, fastapi_13537, fastapi_14303, fastapi_14099, fastapi_15588, fastapi_15800,
+     fastapi_14258, fastapi_11194, fastapi_14458.
+  2. **Disclosure.** The extension was decided after seeing the 48-pair result. It is a
+     replication on a third backend (aws-l40s), with its own two-sided primary:
+     - test: resolved, paired, exact McNemar plus the Newcombe method 10 interval;
+     - 1 run per arm, at the frozen pins: no memory with a build byte-identical to 61e408a,
+       recap at 59f10a6.
+
+     The combined ~98-pair analysis, stratified by backend, is secondary and makes no
+     confirmatory claim. Both are reported whatever they show. `results/analyze_rows.py` computes
+     them in their own blocks (`extension_primary_resolve_run1`,
+     `combined_secondary_resolve_run1`). The registered 48-pair figures never see aws-l40s rows,
+     and its number check and a test enforce that.
+  3. **Partial runs.** Only complete pairs are analysed, and a partial set is labelled
+     exploratory. A run lost in flight to a spot interruption is rerun once from scratch, in both
+     arms. Both arms of a task run close together in seed order.
+  4. **Smallest detectable effect.** With the A/A discordance (18.75%), the paired SE goes from
+     sqrt(0.1875/48) = 0.063 to sqrt(0.1875/98), about 4.4 percentage points. So 80% power at
+     alpha = 0.05 goes from about +/-18 points to about +/-12 points for the combined set. The
+     extension alone (n=50) has about +/-17 points.
 
 ## 11. Stretch: rejection-sampling LoRA (exploratory, after the headline runs)
 

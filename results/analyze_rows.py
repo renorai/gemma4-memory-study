@@ -21,7 +21,8 @@ from stats.hypotheses import fisher_one_sided, wilcoxon_one_sided  # noqa: E402
 from stats.repeats import trimmed_mean, wilcoxon_signed_rank  # noqa: E402
 
 SEED, NB = 20261107, 10_000
-BACKENDS = ("modal", "kaggle")
+BACKENDS = ("modal", "kaggle")          # the registered 48 pairs (DESIGN.md section 10)
+EXTENSION = "aws-l40s"                  # the post-48 replication backend (its own primary; see DESIGN.md)
 
 
 def wilson(k, n, z=1.959964):
@@ -130,6 +131,9 @@ def main(rows_path=HERE / "run_rows.jsonl", out_path=HERE / "analysis.json"):
     rows_all = [json.loads(l) for l in open(rows_path)]
     # exploratory_partial rows (the 7 finished Modal recap run-2 task-runs) enter NO registered
     # figure: only the labelled exploratory sensitivity variant and the descriptive discordant table.
+    # Rows of the extension backend enter only the extension blocks below.
+    ext_rows = [r for r in rows_all if r["backend"] == EXTENSION and not r.get("exploratory_partial")]
+    rows_all = [r for r in rows_all if r["backend"] != EXTENSION]
     rows = [r for r in rows_all if not r.get("exploratory_partial")]
     I_all = index(rows_all)
     I = index(rows)
@@ -238,6 +242,14 @@ def main(rows_path=HERE / "run_rows.jsonl", out_path=HERE / "analysis.json"):
           == json.dumps(out["sensitivity_resolve_all_available_runs"], sort_keys=True, default=str))
     out["check_no_registered_figure_uses_exploratory_partial"] = ok
     assert ok, "a registered figure depends on exploratory_partial rows"
+    # extension (aws-l40s): its own two-sided primary on complete run-1 pairs, and the combined
+    # stratified analysis (secondary, no confirmatory claim). Registered 48-pair figures above never see these rows.
+    if ext_rows:
+        IE = index(ext_rows)
+        n_pairs = len(pairs(IE, EXTENSION, R1, N1))
+        out["extension_primary_resolve_run1"] = resolve(IE, (EXTENSION,), R1, N1) if n_pairs else {"pairs": 0}
+        IC = {**I, **IE}
+        out["combined_secondary_resolve_run1"] = resolve(IC, BACKENDS + (EXTENSION,), R1, N1) if n_pairs else {"pairs": 0}
     json.dump(out, open(out_path, "w"), indent=1, default=str)
     return out
 

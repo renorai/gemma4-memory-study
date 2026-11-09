@@ -57,5 +57,33 @@ class ExploratoryPartialGate(unittest.TestCase):
                              json.dumps(out2[key], sort_keys=True, default=str), key)
 
 
+class ExtensionBackend(unittest.TestCase):
+    def test_aws_rows_enter_only_extension_blocks(self):
+        import json
+        import tempfile
+        rows_path = Path(__file__).resolve().parents[1] / "results" / "run_rows.jsonl"
+        rows = [json.loads(l) for l in open(rows_path)]
+        base = {k: v for k, v in rows[0].items()}
+        ext = []
+        for i, (x, y) in enumerate([(1, 0), (1, 0), (0, 0), (1, 1), (0, 1), (1, 0)]):
+            for arm, s in (("recap", x), ("none", y)):
+                ext.append({**base, "backend": "aws-l40s", "arm": arm, "run": 1, "task_id": f"fake_{i}",
+                            "success": s, "exploratory_partial": False})
+        with tempfile.TemporaryDirectory() as d:
+            p1 = Path(d) / "rows.jsonl"
+            p1.write_text("".join(json.dumps(r) + "\n" for r in rows + ext))
+            with_ext = ar.main(p1, Path(d) / "a.json")
+            without = ar.main(rows_path, Path(d) / "b.json")
+        for key in ("primary_resolve_run1", "sensitivity_resolve_all_available_runs", "repeats_run1",
+                    "hypotheses_run1", "per_protocol_run1", "aa_calibration", "descriptive_run1"):
+            self.assertEqual(json.dumps(with_ext[key], sort_keys=True, default=str),
+                             json.dumps(without[key], sort_keys=True, default=str), key)
+        e = with_ext["extension_primary_resolve_run1"]
+        self.assertEqual((e["pairs"], e["x_only"], e["y_only"]), (6, 3, 1))
+        self.assertEqual(with_ext["combined_secondary_resolve_run1"]["pairs"], 54)
+        self.assertTrue(with_ext["check_no_registered_figure_uses_exploratory_partial"])
+        self.assertNotIn("extension_primary_resolve_run1", without)
+
+
 if __name__ == "__main__":
     unittest.main()
