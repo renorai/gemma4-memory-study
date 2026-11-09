@@ -35,5 +35,27 @@ class Newcombe(unittest.TestCase):
             self.assertAlmostEqual(got[1], hi, places=3, msg=str(k))
 
 
+class ExploratoryPartialGate(unittest.TestCase):
+    def test_no_registered_figure_uses_partial_rows(self):
+        import json
+        import tempfile
+        rows_path = Path(__file__).resolve().parents[1] / "results" / "run_rows.jsonl"
+        rows = [json.loads(l) for l in open(rows_path)]
+        partial = [r for r in rows if r.get("exploratory_partial")]
+        self.assertEqual(len(partial), 7)
+        self.assertTrue(all((r["backend"], r["arm"], r["run"]) == ("modal", "recap", 2) for r in partial))
+        with tempfile.TemporaryDirectory() as d:
+            out = ar.main(rows_path, Path(d) / "a.json")
+            # the same analysis with the partial rows physically removed gives identical registered figures
+            stripped = Path(d) / "rows.jsonl"
+            stripped.write_text("".join(json.dumps(r) + "\n" for r in rows if not r.get("exploratory_partial")))
+            out2 = ar.main(stripped, Path(d) / "b.json")
+        self.assertTrue(out["check_no_registered_figure_uses_exploratory_partial"])
+        for key in ("primary_resolve_run1", "sensitivity_resolve_all_available_runs", "repeats_run1",
+                    "hypotheses_run1", "per_protocol_run1", "aa_calibration", "descriptive_run1"):
+            self.assertEqual(json.dumps(out[key], sort_keys=True, default=str),
+                             json.dumps(out2[key], sort_keys=True, default=str), key)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -52,6 +52,99 @@
    "mcnemar_p": 0.25
   }
  },
+ "sensitivity_resolve_all_available_runs": {
+  "pooled": {
+   "tasks": 48,
+   "mean_diff": 0.052083333333333336,
+   "bootstrap95": [
+    -0.020833333333333332,
+    0.125
+   ],
+   "task_runs_used": {
+    "none/run1": 48,
+    "none/run2": 48,
+    "recap/run1": 48
+   }
+  },
+  "modal": {
+   "tasks": 16,
+   "mean_diff": 0.03125,
+   "bootstrap95": [
+    -0.15625,
+    0.1875
+   ],
+   "task_runs_used": {
+    "none/run1": 16,
+    "none/run2": 16,
+    "recap/run1": 16
+   }
+  },
+  "kaggle": {
+   "tasks": 32,
+   "mean_diff": 0.0625,
+   "bootstrap95": [
+    0.0,
+    0.140625
+   ],
+   "task_runs_used": {
+    "none/run1": 32,
+    "none/run2": 32,
+    "recap/run1": 32
+   }
+  }
+ },
+ "sensitivity_EXPLORATORY_with_partial_modal_recap_run2": {
+  "pooled": {
+   "tasks": 48,
+   "mean_diff": 0.041666666666666664,
+   "bootstrap95": [
+    -0.03125,
+    0.11458333333333333
+   ],
+   "task_runs_used": {
+    "none/run1": 48,
+    "none/run2": 48,
+    "recap/run1": 48,
+    "recap/run2": 7
+   }
+  },
+  "modal": {
+   "tasks": 16,
+   "mean_diff": 0.0,
+   "bootstrap95": [
+    -0.1875,
+    0.15625
+   ],
+   "task_runs_used": {
+    "none/run1": 16,
+    "none/run2": 16,
+    "recap/run1": 16,
+    "recap/run2": 7
+   }
+  },
+  "kaggle": {
+   "tasks": 32,
+   "mean_diff": 0.0625,
+   "bootstrap95": [
+    0.0,
+    0.140625
+   ],
+   "task_runs_used": {
+    "none/run1": 32,
+    "none/run2": 32,
+    "recap/run1": 32
+   }
+  }
+ },
+ "exploratory_partial_rows": [
+  "modal/recap/run2/requests_6644",
+  "modal/recap/run2/requests_7315",
+  "modal/recap/run2/requests_7328",
+  "modal/recap/run2/requests_7427",
+  "modal/recap/run2/requests_7433",
+  "modal/recap/run2/requests_7502",
+  "modal/recap/run2/requests_7505"
+ ],
  "repeats_run1": {
   "repeat_rate": {
    "label": "registered: repeats per compaction",
@@ -1200,6 +1293,7 @@
    "run1_winner": "none",
    "losing_arm": "recap",
    "losing_arm_solved_in_run2": false,
+   "run2_row_is_exploratory_partial": true,
    "recap_submit_loop_run1": true,
    "none_submit_loop_run1": false
   },
@@ -1209,6 +1303,7 @@
    "run1_winner": "recap",
    "losing_arm": "none",
    "losing_arm_solved_in_run2": true,
+   "run2_row_is_exploratory_partial": false,
    "recap_submit_loop_run1": false,
    "none_submit_loop_run1": false
   },
@@ -1218,6 +1313,7 @@
    "run1_winner": "recap",
    "losing_arm": "none",
    "losing_arm_solved_in_run2": true,
+   "run2_row_is_exploratory_partial": false,
    "recap_submit_loop_run1": false,
    "none_submit_loop_run1": false
   },
@@ -1227,6 +1323,7 @@
    "run1_winner": "recap",
    "losing_arm": "none",
    "losing_arm_solved_in_run2": true,
+   "run2_row_is_exploratory_partial": false,
    "recap_submit_loop_run1": false,
    "none_submit_loop_run1": false
   },
@@ -1236,6 +1333,7 @@
    "run1_winner": "recap",
    "losing_arm": "none",
    "losing_arm_solved_in_run2": true,
+   "run2_row_is_exploratory_partial": false,
    "recap_submit_loop_run1": false,
    "none_submit_loop_run1": false
   },
@@ -1245,6 +1343,7 @@
    "run1_winner": "recap",
    "losing_arm": "none",
    "losing_arm_solved_in_run2": true,
+   "run2_row_is_exploratory_partial": false,
    "recap_submit_loop_run1": false,
    "none_submit_loop_run1": false
   }
@@ -1368,5 +1467,6 @@
     "p": 0.008836979359782475
    }
   ]
- }
+ },
+ "check_no_registered_figure_uses_exploratory_partial": true
 }

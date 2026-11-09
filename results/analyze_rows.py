@@ -99,12 +99,48 @@ def paired_metric(I, keys, x, y, metric, keep=None):
             "wilcoxon_p": wilcoxon_signed_rank(diffs)["p"], "trimmed10": trimmed_mean(diffs), "excluded": excl}
 
 
+def sensitivity(I, keys):
+    """Per-task mean of success over each arm's available runs, recap - none (paired, stratified)."""
+    groups, n = [], 0
+    for b in keys:
+        ts = sorted({t for (bb, a, r, t) in I if bb == b and a == "recap"} & {t for (bb, a, r, t) in I if bb == b and a == "none"})
+        g = []
+        for t in ts:
+            xs = [x["success"] for (bb, a, r, tt), x in I.items() if bb == b and a == "recap" and tt == t]
+            ys = [x["success"] for (bb, a, r, tt), x in I.items() if bb == b and a == "none" and tt == t]
+            g.append(sum(xs) / len(xs) - sum(ys) / len(ys))
+        groups.append(g); n += len(g)
+    diffs = [v for g in groups for v in g]
+    lo, hi = strat_ci(groups)
+    runs = {f"{a}/run{r}": sum(1 for (bb, aa, rr, t) in I if bb in keys and aa == a and rr == r)
+            for (bb, a, r, t) in I if bb in keys}
+    return {"tasks": n, "mean_diff": sum(diffs) / n, "bootstrap95": [lo, hi], "task_runs_used": runs}
+
+
+def registered_blocks(I):
+    """Every registered figure (and the descriptive run-1 blocks), from index I."""
+    R1, N1 = ("recap", 1), ("none", 1)
+    sets = (("pooled", BACKENDS), ("modal", ("modal",)), ("kaggle", ("kaggle",)))
+    return {"primary_resolve_run1": {k: resolve(I, ks, R1, N1) for k, ks in sets},
+            "repeat_rate_run1": {k: paired_metric(I, ks, R1, N1, "repeat_rate") for k, ks in sets},
+            "sensitivity_resolve_all_available_runs": {k: sensitivity(I, ks) for k, ks in sets}}
+
+
 def main(rows_path=HERE / "run_rows.jsonl", out_path=HERE / "analysis.json"):
-    rows = [json.loads(l) for l in open(rows_path)]
+    rows_all = [json.loads(l) for l in open(rows_path)]
+    # exploratory_partial rows (the 7 finished Modal recap run-2 task-runs) enter NO registered
+    # figure: only the labelled exploratory sensitivity variant and the descriptive discordant table.
+    rows = [r for r in rows_all if not r.get("exploratory_partial")]
+    I_all = index(rows_all)
     I = index(rows)
+    assert not any(r.get("exploratory_partial") for r in I.values())
     R1, N1, N2 = ("recap", 1), ("none", 1), ("none", 2)
     sets = (("pooled", BACKENDS), ("modal", ("modal",)), ("kaggle", ("kaggle",)))
-    out = {"primary_resolve_run1": {k: resolve(I, ks, R1, N1) for k, ks in sets}}
+    out = {"primary_resolve_run1": {k: resolve(I, ks, R1, N1) for k, ks in sets},
+           "sensitivity_resolve_all_available_runs": {k: sensitivity(I, ks) for k, ks in sets},
+           "sensitivity_EXPLORATORY_with_partial_modal_recap_run2": {k: sensitivity(I_all, ks) for k, ks in sets},
+           "exploratory_partial_rows": sorted(f"{r['backend']}/{r['arm']}/run{r['run']}/{r['task_id']}"
+                                              for r in rows_all if r.get("exploratory_partial"))}
     metrics = {"repeat_rate": "registered: repeats per compaction",
                "repeat_rate_posthoc": "post-hoc: repeats per compaction, submit_patch calls after the first ok submit removed",
                "repeats_after_compaction": "post-hoc (a): RAW repeats per task at the registered steps (includes post-submit submit_patch loops)",
@@ -164,9 +200,10 @@ def main(rows_path=HERE / "run_rows.jsonl", out_path=HERE / "analysis.json"):
             if rx["success"] == ry["success"]:
                 continue
             winner, loser = ("recap", "none") if rx["success"] else ("none", "recap")
-            other = I.get((b, loser, 2, t))
+            other = I_all.get((b, loser, 2, t))        # descriptive: may use exploratory_partial rows
             disc.append({"backend": b, "task_id": t, "run1_winner": winner, "losing_arm": loser,
                          "losing_arm_solved_in_run2": None if other is None else bool(other["success"]),
+                         "run2_row_is_exploratory_partial": None if other is None else bool(other.get("exploratory_partial")),
                          "recap_submit_loop_run1": rx["submit_loop"], "none_submit_loop_run1": ry["submit_loop"]})
     out["discordant_pairs_run1_posthoc_descriptive"] = disc
     # every post-hoc test run so far (p values from this file's own computations)
@@ -189,6 +226,18 @@ def main(rows_path=HERE / "run_rows.jsonl", out_path=HERE / "analysis.json"):
     ph.append({"test": "H-b one-sided Fisher (Modal discovery, post-hoc there)", "stratum": "modal",
                "p": hyp["modal"]["H-b_fisher_p_one_sided"]})
     out["posthoc_tests"] = {"count": len(ph), "tests": ph}
+    # number check: every registered figure is identical whether or not the exploratory_partial rows
+    # exist in the index (run-1 and none-only figures), and the registered sensitivity mean is the one
+    # computed without them.
+    reg = registered_blocks(I)
+    reg_all_but_sens = {k: v for k, v in registered_blocks(I_all).items() if k != "sensitivity_resolve_all_available_runs"}
+    ok = (json.dumps({k: v for k, v in reg.items() if k != "sensitivity_resolve_all_available_runs"}, sort_keys=True, default=str)
+          == json.dumps(reg_all_but_sens, sort_keys=True, default=str)
+          and json.dumps(reg["primary_resolve_run1"], sort_keys=True, default=str) == json.dumps(out["primary_resolve_run1"], sort_keys=True, default=str)
+          and json.dumps(reg["sensitivity_resolve_all_available_runs"], sort_keys=True, default=str)
+          == json.dumps(out["sensitivity_resolve_all_available_runs"], sort_keys=True, default=str))
+    out["check_no_registered_figure_uses_exploratory_partial"] = ok
+    assert ok, "a registered figure depends on exploratory_partial rows"
     json.dump(out, open(out_path, "w"), indent=1, default=str)
     return out
 

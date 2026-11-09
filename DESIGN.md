@@ -1013,6 +1013,18 @@ dataset) and writes three push directories.
 - **2026-11-09T07:48Z, analysis hierarchy, written before any run-2 recap row is read.** Run 1 pooled over 48
   pairs (Modal 16 + Kaggle 32), with the bootstrap stratified by backend, is PRIMARY. The per-task
   mean over all available runs is the sensitivity analysis. Run 2 cannot change the headline.
+- **2026-11-09T07:59Z, the 7 partial Modal recap run-2 rows are gated out of every registered figure.** The
+  Modal pairing rule (item 4 of the infrastructure entry, written before they were read) says the
+  sensitivity check is "the per-task mean over each arm's available runs" and also that "the 7
+  finished run-2 recap runs are exploratory, not headline". Read together, that is ambiguous, so
+  they are excluded:
+  - They carry `exploratory_partial=true` in `results/run_rows.jsonl`.
+  - The registered sensitivity mean is computed without them: pooled +0.052, bootstrap 95%
+    [-0.021, +0.125].
+  - A labelled exploratory variant includes them: pooled +0.042 [-0.031, +0.115].
+  - They are used otherwise only in the post-hoc descriptive discordant-pair table, flagged there.
+  - `results/analyze_rows.py` asserts that every registered figure is identical with and without
+    them, and `tests/test_results_analysis.py` checks it.
 
 ## 11. Stretch: rejection-sampling LoRA (exploratory, after the headline runs)
 

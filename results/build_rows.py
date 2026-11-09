@@ -3,7 +3,11 @@ committed). One row per (backend, arm, run, task): outcomes and aggregates only,
 patch, no tool arguments.
 
     python results/build_rows.py <out.jsonl> backend=arm=run=<results_dir>[,<results_dir>] ...
-                                 [--recap-submission <dir>]
+                                 [--recap-submission <dir>] [--exploratory-partial backend=arm=run ...]
+
+Rows of a (backend, arm, run) named with --exploratory-partial get exploratory_partial=true: the 7
+finished Modal recap run-2 task-runs (a biased subset of short requests tasks), declared exploratory
+in DESIGN.md section 10 (Modal pairing rule). No registered figure uses them (results/analyze_rows.py).
 """
 import json
 import sys
@@ -65,18 +69,22 @@ def row(backend, arm, run, d, r, sub):
 
 
 def main(argv):
-    out_path, specs, sub = Path(argv[0]), [], None
+    out_path, specs, sub, partial = Path(argv[0]), [], None, set()
     i = 1
     while i < len(argv):
         if argv[i] == "--recap-submission":
             sub = Path(argv[i + 1]); i += 2; continue
+        if argv[i] == "--exploratory-partial":
+            b_, a_, r_ = argv[i + 1].split("="); partial.add((b_, a_, int(r_))); i += 2; continue
         backend, arm, run, dirs = argv[i].split("=", 3)
         specs.append((backend, arm, int(run), [Path(x) for x in dirs.split(",")])); i += 1
     rows = []
     for backend, arm, run, dirs in specs:
         for d in dirs:
             for line in open(d / "task_results.jsonl"):
-                rows.append(row(backend, arm, run, d, json.loads(line), sub))
+                r = row(backend, arm, run, d, json.loads(line), sub)
+                r["exploratory_partial"] = (backend, arm, run) in partial
+                rows.append(r)
     with open(out_path, "w") as f:
         for r in sorted(rows, key=lambda r: (r["backend"], r["arm"], r["run"], r["task_id"])):
             f.write(json.dumps(r, sort_keys=True) + "\n")
