@@ -884,6 +884,18 @@ dataset) and writes three push directories.
     machinery failures (no error, no note outside the task folder, no status "error"). 4 never
     ran the first recall. 7 had nothing to inject at a compaction. All 11 are adherence
     failures.
+- **2026-11-09T04:41Z, POST-HOC (written after seeing submit_patch loops in 2 of 16 Modal recap runs):
+  a repeat-rate variant.** In those 2 runs, `submit_patch` returned ok but the episode did not
+  end, and the agent called it about 400 more times, up to the 500-turn limit. This was never
+  seen without memory.
+  - The variant reports the repeated-action rate with every `submit_patch` call after the
+    first ok submit removed, computed identically in both arms (`stats/repeats.py` metric on the
+    filtered steps; descriptive).
+  - It is labelled post-hoc everywhere it appears. The registered metric (section 10, the
+    repeat-rate statistics) stays the primary secondary outcome and is reported unchanged.
+- **2026-11-09T04:41Z, main-competition note (future work, not this paper):** a guard that ends the run after
+  the first ok `submit_patch`, in every arm, so a looping agent cannot spend its remaining
+  budget. Not used in any arm of this study.
 
 ## 11. Stretch: rejection-sampling LoRA (exploratory, after the headline runs)
 
