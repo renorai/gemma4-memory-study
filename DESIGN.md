@@ -866,6 +866,24 @@ dataset) and writes three push directories.
        that include 12 in the minute of the freeze. A burst of 29 at 03:15Z did not freeze it.
      The memory arm has more rejections per request, so the freeze may be related to the arm.
      The cause is not established.
+- **2026-11-09T04:45Z, Modal run-1 rerun done; no watchdog trigger; process observations.** The 10
+  missing run-1 recap tasks ran at 59f10a6 (code 16e71dab) from 04:12 to 04:37Z and all finished,
+  so recap run 1 is complete on all 16 tasks. The watchdog did not fire.
+  - Prompt-too-long rejections in the rerun: 24 of 1,464 requests (1.6%). Over both recap
+    containers that is 94 of 2,492 (3.8%), against 5.1% for no-memory. The rejection rate is
+    therefore not consistently higher in the memory arm, and the freeze's link to the arm stays
+    unestablished.
+  - **`submit_patch` loop, recap arm only:** in 2 of 16 run-1 recap runs (requests_7205,
+    requests_7328), `submit_patch` returned `ok`, but the episode did not end. The agent called
+    it 441 and 385 more times, until the 500-turn limit. No no-memory run went past 120 model
+    calls. These calls count as repeated actions, so they dominate the pooled repeat count
+    (879 of the recap arm's run-1 repeats). The cause is not established; a harness interaction
+    with the memory arm's sub-agents is possible. The pre-registered repeat statistic is
+    reported as defined. Any variant that leaves out `submit_patch` is post-hoc and labelled so.
+  - Plumbing split (post-hoc, as defined above), run 1 recap: 11 `plumbing_failed`. 0 were
+    machinery failures (no error, no note outside the task folder, no status "error"). 4 never
+    ran the first recall. 7 had nothing to inject at a compaction. All 11 are adherence
+    failures.
 
 ## 11. Stretch: rejection-sampling LoRA (exploratory, after the headline runs)
 
