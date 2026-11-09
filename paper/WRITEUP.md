@@ -1,338 +1,294 @@
 <!--
-Kaggle Writeup. Hard limit: 3,000 words, and tables and captions count (host ruling); figures and
-references do not. tests/test_artifacts.py counts the words (HTML comments are excluded) and
-fails at 3,001.
-Rules for filling it in:
-- Every number in a RESULTS-TABLE comes from notebook/gemma4_graph_memory.ipynb (tables.md,
-  same table numbers). Every cell stays TODO until then; the test checks this.
-- Every number names its model, its task set (48-task floor or 129) and its scorer (harness tests).
-- "TBD" marks a decision that is not made yet (the recap headline); "TODO" marks a missing number.
-- No "state of the art" and no claim we have not measured.
-- The pre-commitment rules are DESIGN-CHANGELOG-addendum.md (timestamped 2026-11-08T22:06Z,
-  before any memory-arm result). The paper must follow them, not restate them differently.
-- Submit Writeup v1 on Tue 10 Nov and keep editing it; the deadline is Thu 12 Nov 23:59 UTC.
+Kaggle Writeup. Hard limit: 3,000 words, tables and captions included (host ruling); figures and
+references do not count. HTML comments are excluded from the count.
+Every number comes from results/analysis.json (regenerate: python results/analyze_rows.py), from
+DESIGN.md section 10, or, for the delivery counts only, from results/run_rows.jsonl through
+notebook/paper_figures.py:delivery. paper/check_numbers.py checks each number and the word count.
+Run 2 of the Kaggle recap arm is sensitivity only (DESIGN.md, 2026-11-09T07:48Z) and cannot change
+the headline.
 -->
 
-# Told Once: Offline Renor Memory for Small Gemma 4 Coding Agents
+# Carrying the Last Finding Across Context Compaction: A Pre-Registered Null Result for Automatic Working Memory in a Small Gemma 4 Coding Agent
 
 Patrick Passos (Renor)
 
 ## Abstract
 
-Small coding agents repeat themselves. Across tasks they rediscover what an earlier run already
-learned; within a task, once context compaction drops their early steps, they re-read files and
-re-try edits. Renor is a memory engine built on one promise: context told once should be
-available later, when it is relevant. We take its retrieval design, which is keyword-OR search
-with stemming, corrections that supersede what they correct, and recall cut to a token budget,
-and port it to a few hundred lines of standard-library Python that runs offline inside a
-declarative Gemma 4 agent. No embeddings and no model calls are used at recall time.
+When a coding agent's context is compacted, it loses what it found. We ask whether automatic,
+Renor-style working memory that survives compaction helps a small model solve real repository
+tasks. The treatment arm does **not** test agent-written memory: the harness automatically
+re-injects the explorer sub-agent's latest finding into every coder request, plus any notes the
+agent chose to write (it almost never did). We compare it with no memory using Gemma 4 31B (QAT,
+4-bit) in the Gemma 4 Developer Agent harness, on 48 paired tasks across two backends (Modal H100,
+16 tasks; Kaggle 4x L4, 32 tasks).
 
-On the public development tasks of the Gemma 4 Developer Agent harness, with Gemma 4 31B (QAT,
-4-bit) on four L4 GPUs, we compare **no memory** with **memory**: lessons Gemma wrote about its own
-earlier attempts on *other* repositories (leave-one-repo-out). A **shuffled-memory** control keeps
-the same lessons and protocol but breaks which lesson reaches which code. A fourth arm, an
-in-task **"where was I" recap** after context compaction, is a candidate headline; whether it is
-one is decided from no-memory traces only (TBD). The scope and the analysis were committed in
-writing before any memory-arm result.
+The pre-registered primary outcome, pooled run-1 resolve rate, was 29/48 with memory against 25/48
+without: +8.3 points, Newcombe 95% interval [-1.3, +17.5], exact McNemar p = 0.22. This is a null
+result. With 19% of tasks flipping between two identical no-memory runs, the study can exclude only
+large effects (minimal detectable effect about ±18 points). The registered secondary, repeated
+actions per compaction, was also null (+0.30 [-4.50, +5.98]). Two directional hypotheses found on
+Modal did not replicate on Kaggle.
 
-**Result:** TODO: resolved rate per arm, the paired difference with its 95% CI, per-run McNemar,
-the flip rate and context overflows, on the 48-task floor set and on all 129 tasks if they
-complete.
+The mechanism findings are clearer. The model almost never wrote notes (2 of 16 and 4 of 32 runs).
+Memory costs context: the memory arm's first request is larger, and it compacted more on Modal. Something was
+injected at only 47% to 65% of compactions. On two Modal runs, memory coincided with a
+`submit_patch` loop. We also report an A/A calibration and a validity funnel (129 tasks, of which
+105 were valid). Together they show that single-run memory claims on task sets of this size sit
+inside run-to-run noise.
 
 ## 1. Introduction
 
-A user who explains something to an assistant should not have to explain it again. Coding agents
-have the same problem twice over:
-- **Across tasks.** An agent that learned that a header bug lives in the helper below `send` does
-  not carry that lesson to the next repository.
-- **Within a task.** The harness compacts the conversation at about 14k tokens. After that, a
-  small model can lose track of what it has already read and tried.
+Renor's product promise is that context told once stays available to an agent when it is relevant.
+For a small coding agent, the first place that promise breaks is inside a single task. The Gemma 4
+harness compacts the conversation when the previous prompt reaches 14,336 tokens. In 16 no-memory
+throughput traces, 13 tasks compacted, and 53 of 83 exact repeats of a read, a command or an
+explorer question came after a compaction. Experience memory across tasks (Reflexion, ExpeL,
+ReasoningBank) targets a different problem. VibeMemBench found that 11 of 12 solver and memory
+pairings did not beat memory-off on coding tasks. We therefore built the study expecting a likely
+null result and designed it to report one honestly.
 
-Experience memory targets the first problem. Reflexion, ExpeL, Agent Workflow Memory,
-ReasoningBank and SWE-Exp keep lessons from an agent's own trajectories and retrieve them later.
-The evidence for coding agents is sobering: on VibeMemBench, 11 of 12 solver and memory-system
-pairings did not beat memory-off, and directly injected verified experience helped 4 of 5
-solvers by 1.1 to 4.5 percentage points. A null result is therefore the likely outcome, and the
-study is built to report one honestly.
-
-**What is different here.**
-1. **A product memory design, not a research prototype.** The retrieval rules are Renor's, ported
-   rule by rule with source citations and checked against Renor's own test cases.
-2. **Offline and declarative.** Gemma 4 submissions are YAML agents, prompts and skill scripts.
-   Memory must ship as static lessons and a script that runs in the task sandbox, with no network
-   and no embedding model.
-3. **Small open models.** Gemma 4 31B, quantized to 4 bits, served on four 24 GB GPUs.
-4. **Committed before results.** The task sets, the headline rule and the analysis were written
-   down, timestamped, before any memory-arm result existed (Section 3.2).
+**Question.** Does automatic working memory that survives compaction help Gemma 4 31B resolve real
+repository tasks?
 
 **Contributions.**
-- A port of Renor's memory design to a standard-library skill that runs inside the Gemma 4
-  harness, with a validator for the submission rules.
-- A controlled comparison of no memory, memory and shuffled memory on small Gemma 4 agents, with
-  run-to-run noise reported beside every contrast.
-- A measured account of what context compaction does to a small agent, and whether an in-task
-  recap helps (TBD).
-- A notebook that regenerates every table from the raw result rows.
+1. A pre-registered paired comparison, stratified by backend, with a null primary result and an
+   interval that states which effects it excludes.
+2. Mechanism findings: adherence (the model rarely writes memory), the context cost of memory,
+   delivery rates, and a treatment-associated `submit_patch` loop.
+3. A measurement method for small agent studies: A/A calibration, a validity funnel, smoke gates,
+   frozen detectors, byte-identical baseline builds, and a timestamped change log.
 
 ## 2. Method
 
 ### 2.1 Setting
 
-Each task gives the agent an issue in one Python repository; the agent returns a patch, and the
-harness's tests score it as resolved or not. Our agent is a coder with `run_command`,
-`read_file`, `write_file`, `edit_file`, `get_status` and `submit_patch`, plus a read-only explorer
-sub-agent that holds the harness's three code-graph tools, so their output stays out of the
-coder's context. Thinking is on (budget 4,096 tokens). Each task gets at most 100 tool calls and
-60 minutes. The harness compacts the event history once it passes 14,336 tokens; the model's
-context limit is 32,768.
+The model is Gemma 4 31B (QAT, w4a16, thinking budget 4096) in the competition's declarative ADK
+harness: a coder agent, an `explorer` sub-agent, a 100-tool-call cap and a 60-minute cap. Tasks are
+the 129 public development tasks (fastapi 67, rich 48, requests 13, httpx 1). Scoring uses the
+harness's own `verify_task` in a per-task Python 3.13 environment built by the harness's Docker
+setup steps (`kernels/scorer_sandbox.py`). The agents run under the subprocess sandbox, not the
+official Docker scorer.
 
-### 2.2 Lessons
+### 2.2 Arms
 
-After each first-run no-memory attempt, the same Gemma model reads a compact view of its own
-trace, its own patch and the pass/fail outcome, and writes at most three lessons. A lesson is one
-statement (a title of at most 80 characters and a text of at most 400), anchored to a symbol the
-attempt touched. It is stored the way Renor stores a memory: with a subject (the anchor's leaf
-name), the time it was written, and a `replaces` link when it corrects an earlier lesson.
+- **none:** the baseline submission. Its build is byte-identical across every pin
+  (`tests/test_none_build_identity.py`).
+- **recap:** after every compaction, the coder's instruction carries two session-state slots that
+  ADK fills on each model call: `{explorer_finding?}`, the explorer's latest answer (at most 15
+  lines), and `{working_notes?}`, a page of notes the agent wrote through a `notes` sub-agent,
+  capped at 1,500 tokens. The agent is asked to write a note after each explorer answer and each
+  edit.
 
-**What never reaches the distiller:** the gold patch, test output, or any other model's
-trajectories. Only the four Gemma 4 model names may author a lesson; the lesson constructor
-enforces this.
+The arm began as agent-requested recall. In three smoke checks (6 runs), no run wrote a note, so
+before any result on the 48 tasks we moved recall to automatic injection and then added the
+explorer finding. This was the pre-registered fallback for near-zero note writes. **What we test is
+therefore automatic carry-over of the explorer's last finding, plus rare notes. We do not test
+agent-written working memory.** No embeddings are used.
 
-### 2.3 Renor's memory design, offline
+### 2.3 Pre-registration and analysis
 
-The recall script indexes the repository in front of it and returns at most one page of lessons.
-Each rule below is ported from Renor's TypeScript engine and cites its source line.
-1. **Candidates by code structure.** A symbol's *transferable keys* are properties that recur
-   across repositories: the external APIs it calls, its leaf name, external decorators and base
-   classes, and raised exceptions. A lesson is a candidate when it shares one of these keys with
-   a symbol the issue names or the agent passes. Node identities would not transfer; these keys do.
-2. **Keyword-OR with stemming.** The query is the OR of the issue's content words and the named
-   symbols, with stop words dropped and snake_case or hyphenated words kept whole. Words are
-   Porter-stemmed and candidates are scored with BM25 (k1 1.2, b 0.75) over title and text. A
-   test checks the scores against SQLite FTS5's bm25() to 9 decimal places.
-3. **Corrections supersede.** A newer lesson that reads as a correction of an older one on the
-   same subject ("actually", "instead", "no longer", with enough shared words) is listed first;
-   the corrected lesson is marked and listed right after it.
-4. **Token-budgeted recall.** The page is the longest prefix of that order that fits 800 tokens
-   (Renor's default), at most 5 lessons and at most 2 from one source task. The sandbox has no
-   tokenizer, so the count is a conservative estimate.
+`PREREG.md` (hash-frozen) and `DESIGN.md` section 10, a timestamped change log, record every
+decision before the data it could affect. The headline moved from cross-task lessons to the
+in-task recap. That decision was made from no-memory traces only, before any memory-arm run.
 
-Equal scores go to the newer lesson. The agent saves the issue to `/tmp` and calls the script at
-most three times per task. A memory error prints "memory unavailable" and never ends the episode.
+- **Primary:** resolve rate, intention to treat, run 1 against run 1, pooled over 48 pairs. We
+  report a backend-stratified bootstrap, the Newcombe paired score interval and exact McNemar.
+  Run 2 and per-task means are sensitivity analyses that cannot change the headline.
+- **Key secondary:** repeated actions per compaction. A repeat is a root-agent tool call, after the
+  first compaction, whose tool and normalized arguments match an earlier call. We report the paired
+  mean difference with a bootstrap CI and a Wilcoxon signed-rank test.
+- **Replication:** two directional hypotheses (Section 3.3) were discovered on Modal and frozen as
+  code. They were then tested on Kaggle before any Kaggle recap row was read.
+- **Adherence and delivery:** notes written, and the share of compactions at which something was
+  injected. Both were registered as outcomes.
 
-### 2.4 Arms
+Every test not listed above is post-hoc and labelled so. We ran 24 post-hoc tests in all
+(`results/posthoc_tests.md`).
 
-| Arm | What changes |
-|---|---|
-| no memory | no skill, no memory section in the prompt |
-| memory | the skill and lessons from the other repositories |
-| shuffled memory | the same skill, prompt and lessons, with key sets permuted across lessons (seed 20261107) |
-| recap (TBD) | no-memory agent plus an in-task "where was I" note it writes and recalls after compaction |
+### 2.4 Making the measurement trustworthy
 
-Memory and shuffled memory ship byte-identical prompts and code; only the arm setting and the
-lesson file differ, and a test checks it. Their difference is therefore which lesson reaches
-which code, not the protocol.
+**Validity funnel.** In the public environment, only 37 of 129 tasks passed with their gold patch
+(the reference fix). Adding the missing test dependencies raised this to 68. Installing, for each
+snapshot, the newest competition wheel its own pyproject allows raised it to 105. That step targeted
+the 44 fastapi gold failures caused by a too-new starlette. The 24 exclusions follow written rules. The 48-task
+subset was drawn once, with a seed (20261107), from the 105 valid tasks, stratified by repository.
 
-**The recap arm.** Renor's design applied inside one episode: the agent writes short progress
-notes (files read, hypotheses ruled out, edits made) and recalls them when it no longer sees its
-early steps. It needs no cross-task lessons. Whether it becomes the headline is decided by the
-committed rule in Section 3.2 from no-memory traces alone. Its implementation is TBD.
+**Smoke gates.** Every arm had to pass small out-of-sample checks before running on the 48 tasks.
+These checks caught three bugs that would otherwise have produced results that looked plausible
+but were wrong:
+1. **Plumbing.** The first skill check was rejected: its write was flagged as path traversal, and
+   the skill was neither declared nor reachable.
+2. **Sandbox paths.** Under the subprocess sandbox, skill arguments named the host's `/workspace`
+   and `/tmp`. Memory reported itself unavailable, and notes would have been shared across
+   concurrent tasks.
+3. **Adherence.** Agents skipped recall and wrote no notes. The arm would have run as "memory" with
+   nothing in it.
+
+A CPU replay check also caught an interpreter path that would have failed every task in a fresh
+session. It showed that, after masking random sandbox ids, the no-memory arm sends 33 of 33 model
+requests identical before and after the memory plumbing was added.
+
+**A/A calibration.** We compared the no-memory arm against itself, run 2 against run 1 (Table 1).
+Of the 48 tasks, 9 changed outcome (18.75%), with no treatment at all. With that discordance, 48
+pairs give 80% power only for effects of about ±18 points.
+
+<!-- RESULTS-TABLE -->
+| A/A, no memory run 2 vs run 1 | Kaggle 32 | Modal 16 |
+|---|---|---|
+| resolved, run 1 / run 2 | 14 / 16 | 11 / 12 |
+| difference [95% CI] | +0.063 [-0.094, +0.219] | +0.063 [-0.125, +0.250] |
+| McNemar | b=4, c=2, p=0.69 | b=2, c=1, p=1.0 |
+| leaked thought text, runs (run 1 / run 2) | 5 / 3 | 0 / 0 |
+| overflows (run 1 / run 2) | 5 / 4 | 1 / 0 |
+
+*Table 1. Noise floor with no treatment. Source: DESIGN.md section 10 (A/A calibration).*
 
 ## 3. Experiments
 
-### 3.1 Setup and measured budget
-
-- **Model:** gemma-4-31b-it-qat-w4a16-ct, vLLM, tensor parallel 4 on 4× NVIDIA L4,
-  max_model_len 32,768.
-- **Sandbox:** `swegemma eval --sandbox subprocess`; the official scorer uses Docker.
-- **Tasks:** 129 public development tasks from fastapi, rich, requests and httpx.
-- **Split:** leave-one-repo-out. Each repository is evaluated with lessons written only on the
-  other three.
-
-Measured on a 16-task shard, no-memory arm (8 Nov; these are not results):
-
-| Measure | Value |
-|---|---|
-| tasks per hour, concurrency 8 / 16 | 21.3 / 16.6 |
-| agent minutes per task (median) | 15.9 |
-| model calls per task (median) | 46 |
-| compaction threshold | 14,336 tokens |
-| context overflows | 3 of 16 episodes |
-
-At 21.3 tasks per hour the plan costs:
-
-| Scope | Episodes | Hours |
-|---|---|---|
-| 48 tasks × 2 arms × 3 runs | 288 | 13.5 |
-| 129 tasks × 2 arms × 3 runs | 774 | 36.3 |
-| shuffled or recap, 1 run, 48 / 129 tasks | 48 / 129 | 2.3 / 6.1 |
-
-The 129-task headline does not fit one 12-hour Kaggle session, so it runs across Kaggle and AWS.
-
-### 3.2 What was committed before any memory-arm result
-
-The pre-commitment rules were committed with timestamp 2026-11-08T22:06Z, before any memory-arm
-result existed:
-1. A 48-task subset (seed 20261107) runs regardless and is the floor.
-2. The full 129 tasks × 2 arms × 3 runs is the headline only if it completes on AWS and Kaggle
-   by Wed 11 Nov 12:00 UTC. Otherwise the 48-task set is the headline, and partial 129-task
-   results are labelled exploratory.
-3. Whether the recap is the headline is decided from no-memory traces only: how often episodes
-   compact, and how often actions repeat after compaction. Memory-arm results never enter that
-   decision.
-4. **Analysis.** The primary measure is the resolved rate, as a per-task mean over runs. We report
-   a paired bootstrap 95% CI over tasks and McNemar on per-run pairs. If the CI crosses zero, the
-   difference is a pilot effect size with no significance claim. Context overflow is reported
-   per arm, and so is the flip rate.
-
-These rules sit on top of the frozen preregistration (PREREG.md, 7 Nov), which governs where
-they differ. Its confirmatory tests are memory − no memory on 31B and on 12B, Holm-corrected
-over the two models. Their verdict words still apply: SUPPORTED, CONTRADICTED or NOT SUPPORTED.
-A CI that crosses zero is NOT SUPPORTED.
-
-### 3.3 Main result
-
-Table 1: resolved rate, mean over runs per task, harness tests, gemma-4-31b-it-qat-w4a16-ct,
-leave-one-repo-out. The headline row is chosen by rule 2.
+### 3.1 Primary: resolve rate (pre-registered)
 
 <!-- RESULTS-TABLE -->
-| Task set | tasks | runs | no memory | memory | Δ [95% CI] | McNemar per run (b/c, p) | reading |
-|---|---|---|---|---|---|---|---|
-| 48-task floor | TODO | TODO | TODO | TODO | TODO | TODO | TODO |
-| 129 tasks | TODO | TODO | TODO | TODO | TODO | TODO | TODO |
+| Set | recap / none resolved | recap-only / none-only | difference | Newcombe 95% | exact McNemar p |
+|---|---|---|---|---|---|
+| Pooled, 48 (primary) | 29 / 25 | 5 / 1 | +8.3 pts | [-1.3, +17.5] | 0.22 |
+| Modal H100, 16 | 12 / 11 | 2 / 1 | +6.3 pts | [-14.6, +26.7] | 1.0 |
+| Kaggle 4x L4, 32 | 17 / 14 | 3 / 0 | +9.4 pts | [-0.5, +18.6] | 0.25 |
 
-Table 2: controls and the recap arm. Same model, scorer and split; 1 run unless rule 3 promotes
-the recap.
+*Table 2. Run 1, intention to treat. The backend-stratified bootstrap gives [0.0, +18.8] pooled. Its
+lower bound sits at 0 because of the 5/1 split and is not evidence against harm.*
 
-<!-- RESULTS-TABLE -->
-| Task set | memory − shuffled [95% CI] | shuffled − no memory [95% CI] | recap − no memory [95% CI] | recap status |
-|---|---|---|---|---|
-| 48-task floor | TODO | TODO | TODO | TODO |
-| 129 tasks | TODO | TODO | TODO | TODO |
+Memory resolved 4 more of 48 tasks. This is not a significant effect. The interval excludes harms
+larger than about 1 point and gains larger than about 18 points. Figure 1 puts this next to the A/A
+contrast. The no-memory arm, compared with itself, moved by the same +6.3 points as the Modal
+treatment effect. Per-protocol, which excludes runs flagged `plumbing_failed`, the result is
+the same (26 pairs, 13 vs 11, p = 0.5).
 
-**Reading.** If memory beats no memory but not shuffled memory, the gain comes from having
-lessons in context, not from the lessons reaching the right code.
+![Figure 1](figures/forest.png)
+*Figure 1. Resolve-rate difference with Newcombe 95% intervals. Blue: recap minus none, per backend
+and pooled. Orange: no memory against itself. Dashed: the minimal detectable effect.*
 
-### 3.4 Context: compaction, repetition and overflow
-
-Table 3: context measures per arm, 31B, 48-task floor set, all runs.
-
-<!-- RESULTS-TABLE -->
-| Arm | episodes compacted ≥1× | compactions per episode | repeated actions after compaction | context overflows |
-|---|---|---|---|---|
-| no memory | TODO | TODO | TODO | TODO |
-| memory | TODO | TODO | TODO | TODO |
-| shuffled memory | TODO | TODO | TODO | TODO |
-| recap | TODO | TODO | TODO | TODO |
-
-A *repeated action* is a tool call after a compaction whose tool and arguments match a call made
-before it in the same episode. Memory adds up to 800 tokens per recall, so it can raise
-overflows; that is why overflow is reported per arm.
-
-### 3.5 Noise
-
-Table 4: run-to-run flip rate between identical runs, 31B, harness tests.
+### 3.2 Key secondary: repeated actions per compaction (registered)
 
 <!-- RESULTS-TABLE -->
-| Arm / task set | runs | pairwise flip rate | tasks not identical in all runs |
+| Repeats per compaction, recap - none | Pooled | Modal | Kaggle |
 |---|---|---|---|
-| no memory / 48 | TODO | TODO | TODO |
-| memory / 48 | TODO | TODO | TODO |
-| no memory / 129 | TODO | TODO | TODO |
-| memory / 129 | TODO | TODO | TODO |
+| registered | +0.30 [-4.50, +5.98], p 0.27, n 41 | +8.54 [-0.74, +22.48], p 0.28, n 15 | -4.45 [-9.34, -1.22], p 0.019, n 26 |
+| post-hoc: post-submit submits removed | -1.35 [-2.46, -0.33], p 0.23 | +0.21 [-1.15, +1.39], p 0.25 | -2.26 [-3.81, -0.84], p 0.029 |
 
-On Kaggle forums, two identical 31B runs were reported to flip 15% of tasks. We have not
-measured this ourselves; Table 4 will.
+*Table 3. Paired mean difference [bootstrap 95% CI], Wilcoxon p, tasks with a rate in both arms.*
 
-### 3.6 Per repository and cost
+The registered pooled statistic is null, and its 10% trimmed mean is -1.17. The per-backend values
+are descriptive, since the registration is pooled, and each is driven by `submit_patch` loops
+(Section 3.4). Modal's +8.54 comes from two looping recap runs. Kaggle's -4.45 includes one looping
+no-memory run, and it shrinks to -2.26 once post-submit submits are removed.
 
-Table 5: memory − no memory by evaluated repository (leave-one-repo-out fold), 31B, mean over
-runs.
+**Post-hoc denominator checks (exploratory).** A per-compaction rate can fall simply because
+compactions rise. We therefore also looked at raw repeats per task, repeats per tool call after the
+first compaction, and compactions per task. These checks belong to the 24 post-hoc tests. Only
+single-stratum tests fell below 0.05:
+- Kaggle repeat rate with post-submit submits removed (p 0.029);
+- Kaggle repeats per call (0.021 registered steps, 0.042 without post-submit submits);
+- Modal compactions per task (0.032);
+- the Modal discovery of H-b (0.0088).
+
+None survives a Bonferroni correction over the 24, and no pooled test reached 0.05. Pooled raw
+repeats did not fall (post-hoc -0.98 [-3.17, +1.02], p 0.53). The pooled post-hoc rate has a
+bootstrap interval that excludes 0, but its rank test does not reach 0.05 (p 0.23). We do not call
+any of these results significant. A "memory reduces repeated actions" claim is not supported.
+
+### 3.3 Replication of two Modal hypotheses (pre-registered)
+
+**H-a:** recap has more compactions before the first successful submit. **H-b:** recap has more runs
+that leak raw `<|channel>` thought text into the coder's output. Both were discovered on Modal and
+frozen as code (`stats/hypotheses.py`) before any Kaggle recap result was read.
 
 <!-- RESULTS-TABLE -->
-| Fold | tasks | no memory | memory | Δ |
-|---|---|---|---|---|
-| fastapi | TODO | TODO | TODO | TODO |
-| rich | TODO | TODO | TODO | TODO |
-| requests | TODO | TODO | TODO | TODO |
-| httpx | TODO | TODO | TODO | TODO |
+| | Modal (discovery, post-hoc there) | Kaggle (replication) |
+|---|---|---|
+| H-a, tasks recap more / fewer / equal | 8 / 2 / 6, one-sided p 0.059 | 17 / 11 / 4, p 0.16 |
+| H-b, runs with leaked thought, recap / none | 6 / 0 of 16, Fisher p 0.0088 | 5 / 5 of 32, p 0.63 |
 
-Table 6: process and cost per arm, 31B, 48-task floor set. Compute was free (Kaggle and credits),
-so tokens and minutes are the cost.
+*Table 4. Neither hypothesis replicated.*
 
-<!-- RESULTS-TABLE -->
-| Arm | tool calls (median) | model calls (median) | tokens per resolved task | agent minutes (median) | recalls per task | lessons shown per task |
-|---|---|---|---|---|---|---|
-| no memory | TODO | TODO | TODO | TODO | TODO | TODO |
-| memory | TODO | TODO | TODO | TODO | TODO | TODO |
-| shuffled memory | TODO | TODO | TODO | TODO | TODO | TODO |
-| recap | TODO | TODO | TODO | TODO | TODO | TODO |
+The H-b base rate differs by backend, and we recorded this before the replication. Kaggle's
+no-memory arm already leaked in 5 and 3 of 32 runs, against 0 of 16 on Modal. A different serving
+stack is the likeliest explanation for Modal's 6/0. Memory is not.
 
-### 3.7 Threats to validity
+### 3.4 Mechanism
 
-- **One repository family per fold.** Each fold evaluates one repository with lessons from the
-  other three. Fold effects are therefore confounded with repository effects, and four folds
-  cannot separate them.
-- **httpx has one task.** Its fold is a single task, so in effect there are three informative
-  folds. Table 5 shows its row only for completeness.
-- **Sandbox.** We run `--sandbox subprocess` because Docker is unavailable in Kaggle kernels. The
-  official scorer uses Docker. Resolved rates may differ from the scorer's in either direction.
-  Both arms share the sandbox, so the paired difference is less exposed than the levels.
-- **Two versus three runs.** The plan is three runs per arm. If a third run does not complete in
-  time, per-task means take values in {0, ½, 1}. Fewer runs give a noisier estimate, and the
-  number of runs is reported in every table.
-- **No embeddings.** Renor's production retrieval can add an embedding lane; the sandbox has no
-  embedding model, so only the keyword lane is tested. A null result here says nothing about
-  embedding retrieval.
-- **Protocol confound.** No memory has a shorter prompt and makes no recall calls. Shuffled memory
-  runs the identical protocol and isolates the lessons.
-- **Power.** With 48 tasks, only a large effect can exclude zero. The likely reading is a pilot
-  effect size.
-- **Contamination.** The development repositories are public and probably in pretraining data.
-  This affects all arms equally.
-- **Throughput sample.** The budget comes from one 16-task shard.
+![Figure 2](figures/adherence.png)
+*Figure 2. Adherence and delivery, recap arm, run 1. Source: results/run_rows.jsonl.*
+
+**Adherence.** The model almost never writes memory. Two of 16 Modal runs wrote any note (2 notes
+in all), and 4 of 32 Kaggle runs did (5 notes). In the six smoke runs it wrote none. All 11
+`plumbing_failed` runs on Modal were adherence failures, not machinery failures: 4 never ran the
+first recall, and 7 had nothing to inject at a compaction. Renor's product telemetry, which is
+internal and not independently published, shows the same pattern: agents ask for memory on about
+1 in 24 prompts unless recall is automatic. Memory that depends on the agent's cooperation largely
+does not happen.
+
+**Delivery.** Even automatic injection needs the agent to have produced something. On Modal,
+something was injected at 21 of 45 compactions (47%); on Kaggle, at 50 of 77 (65%). The mean share
+per compacted run was 38% and 70%. Before a run's first explorer call, nothing can be injected.
+
+**The context cost of memory.** The memory section, the skill and the notes tool add about 2,000
+tokens to every request. The median first coder request was 3,966 tokens against 2,311 (Modal). The
+recap arm therefore reaches the compaction trigger sooner and restarts larger. Compactions rose
+from 23 to 45 on Modal (post-hoc, per task +1.38 [+0.31, +2.69]) and from 71 to 77 on Kaggle.
+Kaggle overflows were 7 against 5 (3 against 2 before any compaction); Modal overflows were 0
+against 1. Overflow occurs when one large step pushes the input past 16,384 tokens before
+compaction can run.
+
+**A treatment harm: the `submit_patch` loop.** In 2 of 16 Modal recap runs, `submit_patch`
+returned ok, but the agent then called it 441 and 385 more times with the same patch, until the
+500-turn limit. The harness ends a run only on a response with visible text and no tool call. No
+Modal no-memory run passed 120 model calls. The loops do not change the resolve outcome, but they
+waste the budget and account for 879 of the recap arm's run-1 Modal repeats. Kaggle had one loop,
+and it was in the no-memory arm, so the loop is not specific to memory.
 
 ## 4. Related work
 
-**Experience memory for agents.**
-- Reflexion (arXiv:2303.11366) keeps verbal reflections for retries of the same task.
-- ExpeL (arXiv:2308.10144) extracts insights and retrieves similar trajectories.
-- Agent Workflow Memory (arXiv:2409.07429) induces reusable workflows for web agents.
-- ReasoningBank (arXiv:2509.25140) distils strategies from self-judged successes and failures.
-- Dynamic Cheatsheet (arXiv:2504.07952) keeps a self-curated test-time memory.
+**Experience memory** stores lessons across tasks: Reflexion (2303.11366), ExpeL (2308.10144),
+Agent Workflow Memory (2409.07429), ReasoningBank (2509.25140) and, for coding, SWE-Exp
+(2507.23361). VibeMemBench (2609.23570) evaluates memory systems for coding agents on real
+repositories, and 11 of 12 pairings did not beat memory-off. Our result fits that pattern, for
+in-task memory and a smaller model. **Context management** treats the window as a resource:
+MemGPT (2310.08560) pages memory in and out like virtual memory. SWE-MeM (2606.28434) learns
+in-episode compression with reinforcement learning. Our arm is untrained and needs no cooperation
+from the agent for the explorer channel. **Structure without memory**, such as Code Isn't Memory
+(2606.22417), RepoGraph (2410.14684) and LocAgent (2503.09089), is already partly in the harness
+through its code-graph tool. SWE-bench (2310.06770) is the task family. We cite no benchmark number
+as comparable to this harness.
 
-**Memory for software agents.**
-- SWE-Exp (arXiv:2507.23361) keeps an experience bank of repair attempts.
-- Subtask-level memory (arXiv:2602.21611) aligns memory with subtasks.
-- Agent KB (arXiv:2507.06229) pools experience across agent frameworks.
-- Repository Memory (arXiv:2510.01003) mines commit history.
-- EA-Graph (arXiv:2608.04278) anchors verification claims to artifacts.
-- SWE-MeM (arXiv:2606.28434) learns *in-episode* memory management with RL. It is the closest
-  relative of our recap arm, which needs no training.
-- VibeMemBench (arXiv:2609.23570) finds that most memory systems do not beat memory-off for
-  coding agents. We start from that finding.
+## 5. Threats to validity
 
-**General memory systems.** MemGPT (arXiv:2310.08560) manages the context window like virtual
-memory. Mem0 (arXiv:2504.19413), Zep (arXiv:2501.13956) and Hindsight (arXiv:2512.12818) store
-conversational memory, and LongMemEval (arXiv:2410.10813) benchmarks it.
+- **Backend is confounded with repository.** Seeded round-robin plus every-third-task allocation
+  sent all 9 requests tasks to Modal (Modal: requests 9, rich 4, fastapi 3; Kaggle: fastapi 16,
+  rich 15, httpx 1). Pairing within a task keeps each difference valid, but no per-backend or
+  per-repository effect can be claimed.
+- **Two runs, one model.** Only run 1 is primary. Kaggle's recap run 2 was not complete when this
+  was written. All results are for Gemma 4 31B QAT.
+- **Valid-set skew.** 105 of 129 tasks were valid. The excluded tasks are mostly fastapi tasks that
+  error on their base commit.
+- **Sandbox.** Agents ran under the subprocess sandbox with our scorer-like environment, not the
+  official Docker scorer.
+- **No embeddings**, no misleading-memory control (`recap_shuffled` was dropped under the $25 Modal
+  cap), and a modest ceiling: no memory resolved 23 of 32 Modal runs.
 
-**Code structure and agents.**
-- RepoGraph (arXiv:2410.14684), CodexGraph (arXiv:2408.03910) and LocAgent (arXiv:2503.09089)
-  retrieve code through repository graphs.
-- SWE-agent (arXiv:2405.15793) and Agentless (arXiv:2407.01489) are the agent baselines.
-- SWE-bench (arXiv:2310.06770) is the task family.
+## 6. Conclusion and future work
 
-## 5. Conclusion
+Automatically carrying the explorer's last finding across compaction did not measurably change
+how often Gemma 4 31B resolved tasks. The study can exclude only effects larger than about 18
+points. Its clearest lessons are about the mechanism and the measurement. Small models do not
+write memory unless memory writes itself. Memory costs context, which in turn causes more
+compactions. With 19% of tasks flipping between identical runs, a single-run memory comparison on
+a few dozen tasks cannot tell a real effect from noise.
 
-TODO, after the analysis, in one paragraph:
-- the headline reading in the committed words;
-- whether memory beat shuffled memory;
-- what compaction did, and the recap result (TBD);
-- the cost in tokens and minutes;
-- the main limitation.
+Two changes come next. The first is a recap that the harness builds from the tool history, so it
+needs no cooperation from the agent and is present at every compaction. The second, for the main
+competition, is a guard that ends a run after the first successful `submit_patch`, in every arm.
 
-**Reproducibility.**
-- Notebook and kernels: TODO-kaggle-urls.
-- Code (Apache 2.0): TODO-public-repo-url.
-- Pre-commitment: DESIGN-CHANGELOG-addendum.md at commit TODO-commit.
-- Preregistration: PREREG.md, sha256 4ca0e1e2…6cf405.
+**Reproducibility.** `results/run_rows.jsonl` holds one row per run, with outcomes and measures
+only. `python results/analyze_rows.py` regenerates every number. The notebook redraws both figures.
+`paper/check_numbers.py` checks each number in this text against `results/analysis.json`, the rows
+and `DESIGN.md`.

@@ -24,11 +24,21 @@ def inlined_tables():
     return "# notebook/paper_tables.py, inlined by make_notebook.py (edit that file, not this cell)\n" + body
 
 
+def inlined_figures():
+    src = (HERE / "paper_figures.py").read_text(encoding="utf-8")
+    body = src[:src.index(STRIP)].rstrip() + "\n"
+    return "# notebook/paper_figures.py, inlined by make_notebook.py (edit that file, not this cell)\n" + body
+
+
 MD, CODE = "markdown", "code"
 CELLS = [
-    (MD, """# Told once: offline Renor memory for small Gemma 4 coding agents (reproduction)
+    (MD, """# Carrying the last finding across context compaction (reproduction)
 
-Every number in the Writeup's results tables comes from this notebook. It reads the arm-run
+Paper: automatic working memory (the explorer's latest finding plus rare agent notes, re-injected
+after every compaction) against no memory, Gemma 4 31B QAT, 48 paired tasks. The last two cells
+regenerate every reported number from `results/run_rows.jsonl` and draw both figures.
+
+The earlier cells are the pre-registered table pipeline (cross-task lessons design). It reads the arm-run
 kernels' `rows.jsonl` files and applies the rules committed before any memory-arm result
 (`DESIGN-CHANGELOG-addendum.md`) and the frozen preregistration (`PREREG.md`).
 
@@ -95,11 +105,20 @@ if rr.exists():
     print('post-hoc tests:', rec['posthoc_tests']['count'])
 else:
     print('no results/run_rows.jsonl')"""),
+    (CODE, "@@FIGURES@@"),
+    (CODE, """# Figure 1 (forest) and Figure 2 (adherence and delivery), from results/ only
+if rr.exists():
+    REC_ROWS = [json.loads(x) for x in rr.read_text().splitlines() if x.strip()]
+    DELIVERY = make_figures(rec, REC_ROWS, OUT / 'figures')
+    for b, d in DELIVERY.items():
+        print(f"{b}: notes in {d['runs_with_note']}/{d['runs']} runs; something injected at "
+              f"{d['compactions_injected']}/{d['compactions']} compactions ({100 * d['share_of_compactions']:.0f}%)")"""),
 ]
 
 
 def main():
-    cells = [(t, inlined_tables() if src == "@@TABLES@@" else src) for t, src in CELLS]
+    fill = {"@@TABLES@@": inlined_tables, "@@FIGURES@@": inlined_figures}
+    cells = [(t, fill[src]() if src in fill else src) for t, src in CELLS]
     nb = {"cells": [{"cell_type": t, "metadata": {}, "source": src.splitlines(keepends=True),
                      **({"outputs": [], "execution_count": None} if t == CODE else {})} for t, src in cells],
           "metadata": {"kernelspec": {"display_name": "Python 3", "language": "python", "name": "python3"},
