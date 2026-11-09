@@ -1062,6 +1062,59 @@ dataset) and writes three push directories.
      sqrt(0.1875/48) = 0.063 to sqrt(0.1875/98), about 4.4 percentage points. So 80% power at
      alpha = 0.05 goes from about +/-18 points to about +/-12 points for the combined set. The
      extension alone (n=50) has about +/-17 points.
+- **2026-11-09T20:05Z, PHASE R (replicates) pre-registration, written before any replicate row exists.**
+  1. **Goal.** Reduce run-to-run noise (A/A discordance 18.75% per run pair) by adding runs. This is a
+     new secondary analysis, decided after seeing the 48-pair result. The registered 48-pair primary and
+     the extension primary are unchanged, and neither sees a Phase R row.
+  2. **Design.**
+     - Backend aws-l40s (one g6e.2xlarge, 1x L40S, spot). Same frozen pins and environment as the
+       extension: no memory with the build byte-identical to 61e408a (code dee8321a...), recap at
+       59f10a6 (code 16e71dab...), env 7f74aeda...; same vLLM flags, harness and limits.
+     - Tasks: all 98 (the 48 plus the 50 of the extension), in seed order (seed 20261107; the
+       envcheck `valid_in_seed_order` list minus the 7 registered exclusions; file
+       `results/phase_r_tasks.txt`).
+     - Each unit is a pair: both arms of one task, back to back.
+     - Prioritisation: fewest runs first, so every task reaches as many runs per arm as the budget
+       allows. A task's level is its smaller per-arm count of complete runs. Existing levels are 1
+       for the 50 extension tasks and the 16 Modal tasks (Modal recap has one complete run) and 2
+       for the 32 Kaggle tasks. Pairs are dispatched level by level (lowest first), in seed order
+       within a level, so: round A (66 tasks) brings every task to 2, then each later round adds
+       one pair to all 98.
+     - Rows: backend `aws-l40s`, `phase` "R", `rep` k = 1, 2, ... per task, `run` = 100 + k (no
+       collision with registered run numbers).
+  3. **Analysis (secondary; `results/analyze_rows.py` block `replicates_secondary_resolve_per_task_mean`,
+     with a test).**
+     - Per task: mean resolve over all complete runs of each arm (registered runs on every backend,
+       without the exploratory_partial rows, plus complete Phase R pairs), recap minus none.
+     - Estimate: the mean of the per-task differences.
+     - Interval: task-level paired bootstrap, 10,000 resamples, seed 20261107, stratified by the
+       backend of the task's run 1 (modal 16, kaggle 32, aws-l40s 50).
+     - Test: a paired sign-flip permutation test on the per-task differences, two-sided, 10,000
+       random sign vectors (seed 20261107), p = (count + 1) / (10,000 + 1).
+     - Reported whatever it shows.
+  4. **Stop rules, whichever comes first:**
+     - Phase R gross spend reaches $50, keeping total AWS GPU spend at or below about $66 including the
+       extension;
+     - the hard wall-clock stop, Wed 11 Nov 03:00Z.
+
+     New pairs stop being dispatched 75 minutes before the binding stop, so pairs in flight can finish.
+     Only complete pairs are analysed. A pair cut by a stop, or lost to a spot interruption and not
+     completed by its single rerun from scratch, is excluded and listed as exploratory. The 20 h
+     instance lifetime limit may end one instance; a new one then resumes at the next undispatched
+     pair under the same stops.
+  5. **Expected smallest detectable effect.**
+     - Assumption: run noise only, with per-run variance sigma^2 = 0.1875 / 2 per arm. Each task's
+       difference then has variance sigma^2 (1/r_recap + 1/r_none), and the SE of the mean over 98
+       tasks is sqrt(sigma^2 x mean(1/r_recap + 1/r_none) / 98).
+     - Throughput (extension: about 16.5 runs/h at $2.14/h gross) gives about 185 complete pairs:
+       round A plus one full round, plus about 20 pairs of the next round.
+     - Smallest detectable effect at 80% power, alpha = 0.05 two-sided (2.8 x SE):
+       - round A only: about +/-8.5 points;
+       - round A plus one full round: about +/-7 points;
+       - expected realised: about +/-7 points.
+     - For comparison: one run per arm on 98 tasks gives +/-12 points; on the 48 tasks, +/-18.
+     - The figures ignore between-task heterogeneity of a true effect, which the task-level bootstrap
+       does include. The realised run counts and SE are reported with the result.
 
 ## 11. Stretch: rejection-sampling LoRA (exploratory, after the headline runs)
 

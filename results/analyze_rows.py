@@ -23,6 +23,41 @@ from stats.repeats import trimmed_mean, wilcoxon_signed_rank  # noqa: E402
 SEED, NB = 20261107, 10_000
 BACKENDS = ("modal", "kaggle")          # the registered 48 pairs (DESIGN.md section 10)
 EXTENSION = "aws-l40s"                  # the post-48 replication backend (its own primary; see DESIGN.md)
+PHASE_R = "R"                           # replicate rows (aws-l40s, phase="R", run = 100 + rep; DESIGN.md section 10)
+
+
+def replicates(rows):
+    """Phase R secondary (DESIGN.md section 10, decided after the 48-pair result): per task, mean resolve
+    over all complete runs of each arm, recap - none; task-level paired bootstrap stratified by the
+    backend of the task's run 1, and a paired sign-flip permutation test on the per-task differences.
+    `rows`: every non-exploratory_partial row. Phase R rows count only as complete pairs (both arms
+    at the same rep)."""
+    R = [r for r in rows if r.get("phase") == PHASE_R]
+    have = {}
+    for r in R:
+        have.setdefault((r["task_id"], r["run"]), set()).add(r["arm"])
+    R = [r for r in R if have[(r["task_id"], r["run"])] >= {"none", "recap"}]
+    base = [r for r in rows if r.get("phase") != PHASE_R]
+    stratum = {r["task_id"]: r["backend"] for r in base if r["run"] == 1}
+    runs = {}
+    for r in base + R:
+        runs.setdefault(r["task_id"], {}).setdefault(r["arm"], []).append(r["success"])
+    tasks = sorted(t for t, v in runs.items() if {"none", "recap"} <= set(v) and t in stratum)
+    d = {t: sum(runs[t]["recap"]) / len(runs[t]["recap"]) - sum(runs[t]["none"]) / len(runs[t]["none"]) for t in tasks}
+    keys = sorted({stratum[t] for t in tasks})
+    groups = [[d[t] for t in tasks if stratum[t] == b] for b in keys]
+    if not tasks:
+        return {"tasks": 0}
+    lo, hi = strat_ci(groups)
+    obs = sum(d.values()) / len(d)
+    rng = random.Random(SEED)
+    vals = list(d.values())
+    ge = sum(abs(sum(v if rng.random() < 0.5 else -v for v in vals) / len(vals)) >= abs(obs) - 1e-12 for _ in range(NB))
+    per_arm = {a: sorted(len(runs[t][a]) for t in tasks) for a in ("none", "recap")}
+    return {"tasks": len(tasks), "strata": {b: len(g) for b, g in zip(keys, groups)},
+            "phase_r_complete_pairs": len(R) // 2, "mean_diff": obs, "bootstrap95": [lo, hi],
+            "signflip_p_two_sided": (ge + 1) / (NB + 1),
+            "runs_per_task": {a: {"min": v[0], "mean": sum(v) / len(v), "max": v[-1]} for a, v in per_arm.items()}}
 
 
 def wilson(k, n, z=1.959964):
@@ -132,6 +167,8 @@ def main(rows_path=HERE / "run_rows.jsonl", out_path=HERE / "analysis.json"):
     # exploratory_partial rows (the 7 finished Modal recap run-2 task-runs) enter NO registered
     # figure: only the labelled exploratory sensitivity variant and the descriptive discordant table.
     # Rows of the extension backend enter only the extension blocks below.
+    rep_rows = [r for r in rows_all if not r.get("exploratory_partial")]      # Phase R block only
+    rows_all = [r for r in rows_all if r.get("phase") != PHASE_R]
     ext_rows = [r for r in rows_all if r["backend"] == EXTENSION and not r.get("exploratory_partial")]
     rows_all = [r for r in rows_all if r["backend"] != EXTENSION]
     rows = [r for r in rows_all if not r.get("exploratory_partial")]
@@ -250,6 +287,9 @@ def main(rows_path=HERE / "run_rows.jsonl", out_path=HERE / "analysis.json"):
         out["extension_primary_resolve_run1"] = resolve(IE, (EXTENSION,), R1, N1) if n_pairs else {"pairs": 0}
         IC = {**I, **IE}
         out["combined_secondary_resolve_run1"] = resolve(IC, BACKENDS + (EXTENSION,), R1, N1) if n_pairs else {"pairs": 0}
+    # Phase R replicates (secondary, decided after the 48-pair result): never enters the blocks above.
+    if any(r.get("phase") == PHASE_R for r in rep_rows):
+        out["replicates_secondary_resolve_per_task_mean"] = replicates(rep_rows)
     json.dump(out, open(out_path, "w"), indent=1, default=str)
     return out
 

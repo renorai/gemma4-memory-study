@@ -85,5 +85,49 @@ class ExtensionBackend(unittest.TestCase):
         self.assertNotIn("extension_primary_resolve_run1", without)
 
 
+class ReplicatesPhaseR(unittest.TestCase):
+    def test_phase_r_rows_enter_only_the_replicates_block(self):
+        import json
+        import tempfile
+        rows_path = Path(__file__).resolve().parents[1] / "results" / "run_rows.jsonl"
+        rows = [json.loads(l) for l in open(rows_path)]
+        base = {k: v for k, v in rows[0].items()}
+        ext = [{**base, "backend": "aws-l40s", "arm": arm, "run": 1, "task_id": "fake_e", "success": s,
+                "exploratory_partial": False} for arm, s in (("recap", 1), ("none", 0))]
+        k32 = sorted({r["task_id"] for r in rows if r["backend"] == "kaggle"})
+        t0, t1 = k32[0], k32[1]
+        rep = []
+        for t, arm, run, s in ((t0, "recap", 101, 1), (t0, "none", 101, 1),     # a complete pair
+                               ("fake_e", "recap", 101, 0), ("fake_e", "none", 101, 0),
+                               (t1, "recap", 101, 1)):                         # incomplete: excluded
+            rep.append({**base, "backend": "aws-l40s", "phase": "R", "arm": arm, "run": run, "task_id": t,
+                        "success": s, "exploratory_partial": False})
+        with tempfile.TemporaryDirectory() as d:
+            p1 = Path(d) / "a.jsonl"; p1.write_text("".join(json.dumps(r) + "\n" for r in rows + ext))
+            p2 = Path(d) / "b.jsonl"; p2.write_text("".join(json.dumps(r) + "\n" for r in rows + ext + rep))
+            without = ar.main(p1, Path(d) / "a.json")
+            with_r = ar.main(p2, Path(d) / "b.json")
+        for key in ("primary_resolve_run1", "sensitivity_resolve_all_available_runs", "repeats_run1",
+                    "hypotheses_run1", "per_protocol_run1", "aa_calibration", "descriptive_run1",
+                    "extension_primary_resolve_run1", "combined_secondary_resolve_run1"):
+            self.assertEqual(json.dumps(with_r[key], sort_keys=True, default=str),
+                             json.dumps(without[key], sort_keys=True, default=str), key)
+        self.assertNotIn("replicates_secondary_resolve_per_task_mean", without)
+        r = with_r["replicates_secondary_resolve_per_task_mean"]
+        self.assertEqual(r["tasks"], 49)
+        self.assertEqual(r["phase_r_complete_pairs"], 2)
+        self.assertEqual(r["strata"], {"aws-l40s": 1, "kaggle": 32, "modal": 16})
+        # recompute two per-task means by hand: fake_e recap (1+0)/2 - none (0+0)/2 = 0.5
+        kept = [x for x in rows if not x.get("exploratory_partial")]
+        def m(t, a, extra):
+            v = [x["success"] for x in kept if x["task_id"] == t and x["arm"] == a] + extra
+            return sum(v) / len(v)
+        diffs = {t: m(t, "recap", []) - m(t, "none", []) for t in {x["task_id"] for x in kept}}
+        diffs[t0] = m(t0, "recap", [1]) - m(t0, "none", [1])           # t1's lone recap rep is not counted
+        diffs["fake_e"] = 0.5
+        self.assertAlmostEqual(r["mean_diff"], sum(diffs.values()) / len(diffs))
+        self.assertTrue(0 < r["signflip_p_two_sided"] <= 1)
+
+
 if __name__ == "__main__":
     unittest.main()
