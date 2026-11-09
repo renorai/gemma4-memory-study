@@ -44,6 +44,9 @@ MARKER = "<!-- MEMORY -->\n"
 # whose output_key puts the notes page into session state for the coder's {working_notes?}.
 NOTES_AGENT = ROOT / "memory" / "notes_agent.yaml"
 EXPLORER_TOOL = "  - agent_tool:\n      config_path: sub_agents/explorer.yaml\n"
+# Memory arms only (DESIGN.md section 10, 2026-11-09 fallback): the explorer's last answer also
+# lands in session state and is injected as {explorer_finding?}.
+EXPLORER_OUTPUT_KEY = "output_key: explorer_finding          # memory arms only: injected as {explorer_finding?}\n"
 NOTES_TOOL = ("  - agent_tool:                      # memory arms only: saves a note, returns the page\n"
               "      config_path: sub_agents/notes.yaml\n"
               "      skip_summarization: true\n")
@@ -92,6 +95,8 @@ def build(arm, lessons, model, out, *, exclude_repos=(), source_model=None,
         text = _set_model((TEMPLATE / rel).read_text(encoding="utf-8"), model)
         if rel == "agent.yaml" and arm != "none":
             text = _declare_skill(_add_notes_tool(text), skill_dir)
+        if rel == "sub_agents/explorer.yaml" and arm != "none":
+            text = text.rstrip("\n") + "\n" + EXPLORER_OUTPUT_KEY
         (out / rel).write_text(text, encoding="utf-8")
     if arm != "none":
         notes = _set_model(NOTES_AGENT.read_text(encoding="utf-8"), model).replace("SKILL_DIR", skill_dir)

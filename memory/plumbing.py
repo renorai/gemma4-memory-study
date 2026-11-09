@@ -6,24 +6,25 @@ scoring it as "memory did not help" (DESIGN.md section 10, 2026-11-09).
       skill_status            first status line of the first recall: "on", "off", "error" or None
                               (recall never ran)
       skill_error             the first `memory error:` line any graph-memory script printed, or None
-      notes_written           workmem `note` acknowledgements (written by the `notes` sub-agent)
+      notes_written           workmem `note` acknowledgements (written by the `notes` sub-agent);
+                              an adherence outcome, not a plumbing check
       writes_in_task_dir      every note landed in ONE notes file inside the task's own tmp folder
                               (the file the status line named, under renor-notes/, not /workspace),
-                              and the patch holds no notes or task file
-      recaps                  notes pages returned to the coder (the `notes` tool's output, which
-                              its output_key injects into every later model call), plus any page
-                              the coder asked for directly
-      injected_share          share of compactions (stats/repeats.py:compaction_turns) at which a
-                              non-empty notes page was already in state, i.e. returned at an
-                              earlier root turn; None without compactions
+                              and the patch holds no notes or task file; None without notes
+      recaps                  notes pages put into state (the `notes` sub-agent's answer, which its
+                              output_key injects into every later coder call), plus any page the
+                              coder asked for directly
+      explorer_injections     explorer answers put into state ({explorer_finding?}, the fallback
+                              of 2026-11-09)
+      injected_share          share of compactions (stats/repeats.py:compaction_turns) at which some
+                              injected state (notes page or explorer finding) was already set at an
+                              earlier coder turn; None without compactions
       recall_runs_after_compaction
-                              injected_share == 1: the page was shown after EACH compaction; None
-                              without compactions
-      recap_tokens            tokens of all pages returned (memory/renor.py:count_tokens)
-      recap_tokens_per_call   the same, per call, in order
-      plumbing_failed         recap arms only: status not "on", a memory error, no note, a write
-                              outside the task folder, or a compaction with no page injected;
-                              None elsewhere
+                              injected_share == 1; None without compactions
+      recap_tokens, recap_tokens_per_call, explorer_tokens_per_call
+                              tokens of each injected page or finding (memory/renor.py:count_tokens)
+      plumbing_failed         recap arms only: status not "on", a memory error, a note outside the
+                              task folder, or a compaction with nothing injected; None elsewhere
 
 It reads the trace file itself (observation.results[] or observation.content), so it does not
 depend on the shared reader's version.
@@ -93,16 +94,51 @@ def _is_skill(name, args, script):
     return name == "run_skill_script" and str(args.get("file_path", "")).strip('"').endswith(script)
 
 
-def plumbing(trace_path, arm, patch=""):
+# Sub-agents whose final answer lands in session state through output_key in memory arms, and is
+# then injected into every coder call: the notes page ({working_notes?}) and, since the
+# 2026-11-09 fallback, the explorer's last finding ({explorer_finding?}).
+INJECTING_AGENTS = ("notes", "explorer")
+
+
+def sub_agent_answers(trace_path, agents=INJECTING_AGENTS):
+    """[(coder turn, agent, text)]: each sub-agent's final message (an agent step with text and no
+    tool call), with the coder turn that called it. An agent_tool's answer is recorded there; the
+    coder step that called the tool carries no observation."""
+    with open(trace_path, encoding="utf-8") as f:
+        t = json.load(f)
+    out, root, turn = [], None, -1
+    for s in t.get("steps", []):
+        if s.get("source", "agent") != "agent":
+            continue
+        author = (s.get("extra") or {}).get("author")
+        if root is None:
+            root = author
+        if author == root:
+            turn += 1
+            continue
+        if author in agents and not (s.get("tool_calls") or []) and (s.get("message") or "").strip():
+            out.append((turn, author, s["message"]))
+    return out
+
+
+def injecting_agents(submission_dir):
+    """The sub-agents whose answer this BUILT submission injects (an `output_key` in their yaml)."""
+    from pathlib import Path
+    sub = Path(submission_dir) / "sub_agents"
+    return tuple(a for a in INJECTING_AGENTS
+                 if (sub / f"{a}.yaml").is_file() and "\noutput_key:" in (sub / f"{a}.yaml").read_text())
+
+
+def plumbing(trace_path, arm, patch="", agents=INJECTING_AGENTS):
+    """`agents`: which sub-agents' answers this run injects (injecting_agents(submission dir))."""
     from stats.repeats import compaction_turns
     steps, root_pt = read_steps(trace_path)
     status, error, status_notes = None, None, None
-    acks, page_turns, page_tokens = [], [], []
+    acks, injected = [], []                     # injected: (coder turn, source, tokens)
     for turn, name, args, out in steps:
         recall = _is_skill(name, args, "recall.py")
         wm = _is_skill(name, args, "workmem.py")
-        notes_tool = name == "notes" and turn is not None
-        if not (recall or wm or notes_tool):
+        if not (recall or wm):
             continue
         text = _stdout(out)
         first = text.strip().splitlines()[0] if text.strip() else ""
@@ -117,13 +153,17 @@ def plumbing(trace_path, arm, patch=""):
         if wm and first.startswith("noted #"):
             m = _NOTES_PATH.search(first)
             acks.append(m.group(1) if m else None)
-        if (notes_tool or (wm and turn is not None)) and "where was I" in text:
-            page_turns.append(turn)
-            page_tokens.append(count_tokens(text[text.index("where was I"):]))
+        if wm and turn is not None and "where was I" in text:          # a page the coder asked for
+            injected.append((turn, "recap", count_tokens(text[text.index("where was I"):])))
+    for turn, agent, text in sub_agent_answers(trace_path, agents):
+        if agent == "notes" and "where was I" in text:
+            injected.append((turn, "notes", count_tokens(text[text.index("where was I"):])))
+        elif agent == "explorer":
+            injected.append((turn, "explorer", count_tokens(text)))
     comps = compaction_turns(root_pt)
     share = after = None
     if comps:
-        hit = [any(t < c for t in page_turns) for c in comps]
+        hit = [any(t < c for t, _, _ in injected) for c in comps]
         share = sum(hit) / len(hit)
         after = all(hit)
     files = set(acks)
@@ -131,13 +171,18 @@ def plumbing(trace_path, arm, patch=""):
     in_dir = bool(acks) and None not in files and len(files) == 1 and not leaked and all(
         "/renor-notes/" in f and "/workspace/" not in f and (status_notes is None or f == status_notes)
         for f in files)
+    pages = [k for _, src, k in injected if src in ("notes", "recap")]
     row = {"skill_status": status, "skill_error": error, "notes_written": len(acks),
            "notes_file": next(iter(files)) if len(files) == 1 else None,
-           "writes_in_task_dir": in_dir, "recaps": len(page_turns), "injected_share": share,
-           "recall_runs_after_compaction": after, "recap_tokens": sum(page_tokens),
-           "recap_tokens_per_call": page_tokens}
+           "writes_in_task_dir": in_dir if acks else None, "recaps": len(pages),
+           "explorer_injections": sum(1 for _, src, _ in injected if src == "explorer"),
+           "injected_share": share, "recall_runs_after_compaction": after,
+           "recap_tokens": sum(pages), "recap_tokens_per_call": pages,
+           "explorer_tokens_per_call": [k for _, src, k in injected if src == "explorer"]}
     if arm in RECAP_ARMS:
-        row["plumbing_failed"] = bool(status != "on" or error or not acks or not in_dir or after is False)
+        # the plumbing: the skill is alive, nothing errored, notes (if any) stayed in the task folder,
+        # and state was injected before every compaction. Note writes are an adherence outcome.
+        row["plumbing_failed"] = bool(status != "on" or error or (acks and not in_dir) or after is False)
     else:
         row["plumbing_failed"] = None
     return row

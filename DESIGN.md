@@ -725,6 +725,34 @@ dataset) and writes three push directories.
   agent's own current notes, under the same cap. The goal line stays the agent's own. It is not a
   neutral placebo: it tests whether wrong state hurts. A neutral-page arm is added only if the
   budget clearly allows it after the headline.
+- **2026-11-09T02:48Z, out-of-sample smoke round 1 at 8191199 (automatic notes page), and the
+  fallback mechanism move; before any memory-arm result on the 48.** Tasks fastapi_14301 and
+  rich_3063 (seed ranks 49 and 50), 1 run each, Modal H100:
+  - both first recalls printed `working notes: on`, and no memory error occurred;
+  - **0 notes were written.** Each agent called `explorer` once and never called `notes`, despite
+    the instruction to call it after every explorer answer;
+  - both runs ended in a context overflow (prompt over 16,384 tokens, with max_output_tokens
+    16,384). One overflowed before any compaction; the other after 1 compaction, with nothing
+    injected;
+  - wall time 1.7 and 6.2 minutes, model calls 21 and 34; neither resolved.
+  The memory arms' requests start about 2,000 tokens larger than the no-memory arm's (first
+  coder request: about 4,200-4,500 tokens against a median of 2,311). That is the memory
+  section, the skill toolset and the notes tool. The extra size brings the 16,384-token
+  overflow line closer, so context overflow stays a reported outcome per arm.
+  Mechanism move (the pre-registered fallback, near-zero writes): in memory arms, the explorer
+  sub-agent also gets `output_key: explorer_finding`. The coder's instruction shows it as
+  `{explorer_finding?}` under "Your last explorer finding", so the latest explorer answer (at
+  most 15 lines, by its own instruction) is in every later request, including after a
+  compaction. runner/build_submission.py adds this for memory arms only; the `none` build stays
+  byte-identical (tests/test_none_build_identity.py).
+  Plumbing definition, adjusted with the fallback: `plumbing_failed` now checks only the
+  plumbing. A run fails it when its status is not "on", a memory error shows, a note lands
+  outside the task folder, or a compaction comes with nothing injected (no notes page and no
+  explorer finding yet). Note writes are no longer part of it: they are the pre-registered
+  adherence outcome (`notes_written`). memory/plumbing.py reads injected state from the
+  sub-agents' final messages, for the sub-agents that the run's built submission gives an
+  `output_key`. Caveat for `recap_shuffled`: its explorer finding is the agent's own, so that
+  control misleads only through the notes page.
 
 ## 11. Stretch: rejection-sampling LoRA (exploratory, after the headline runs)
 

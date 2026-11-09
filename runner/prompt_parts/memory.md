@@ -35,3 +35,9 @@ The harness compacts your history when it grows past about 14k tokens: your earl
 ### Your notes page
 
 {working_notes?}
+
+### Your last explorer finding
+
+The last answer `explorer` gave you, kept here across compactions:
+
+{explorer_finding?}

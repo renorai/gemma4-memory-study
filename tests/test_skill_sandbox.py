@@ -174,6 +174,15 @@ def _trace(path, calls, prompt_tokens):
     pts = iter(prompt_tokens)
     for i, (author, tool, args, out) in enumerate(calls, 2):
         pt = next(pts) if author == "coder" else 500
+        if tool is None:            # a sub-agent's final answer: text, no tool call
+            steps.append({"step_id": i, "source": "agent", "extra": {"author": author}, "message": out,
+                          "metrics": {"prompt_tokens": pt, "completion_tokens": 10}})
+            continue
+        if tool in ("notes", "explorer"):   # the coder's agent_tool call carries no observation
+            steps.append({"step_id": i, "source": "agent", "extra": {"author": author},
+                          "tool_calls": [{"tool_call_id": f"c{i}", "function_name": tool, "arguments": args}],
+                          "metrics": {"prompt_tokens": pt, "completion_tokens": 10}})
+            continue
         if tool == "run_skill_script":
             content = json.dumps({"stdout": out, "status": "success"})
         elif tool == "notes":
@@ -199,9 +208,10 @@ class PlumbingAssertions(Base):
             a = list(args)
             a[-1] = f"tried Client.send: check {k}"
             page = box.run_skill_script("graph-memory", script, a)
+            out.append(("coder", "notes", {"request": a[-1]}, None))
             out.append(("notes", "run_skill_script",
                         {"skill_name": "graph-memory", "file_path": script, "args": a}, page))
-            out.append(("coder", "notes", {"request": a[-1]}, page.split("\n", 1)[1]))
+            out.append(("notes", None, None, page.split("\n", 1)[1]))
         while sum(1 for c in out if c[0] == "coder") < 7:
             out.append(("coder", "run_command", {"command": "ls"}, "x"))
         return out
@@ -227,6 +237,21 @@ class PlumbingAssertions(Base):
         self.assertEqual(miss["notes_written"], 0)
         self.assertIs(miss["recall_runs_after_compaction"], False)
         self.assertTrue(miss["plumbing_failed"])
+
+    def test_explorer_finding_alone_counts_as_injected_state(self):
+        """The fallback: no note written, but the explorer's answer (output_key explorer_finding)
+        was in state before the compaction. Plumbing works; note writes are an adherence outcome."""
+        box = self.box("box")
+        calls = self.calls(box, notes_before_compaction=False)
+        calls[3:3] = [("coder", "explorer", {"request": "where is the signer?"}, None),
+                      ("explorer", None, None, "alpha/auth.py:3 sign() builds the X-Signature header")]
+        calls = calls[:-1]                      # keep 7 coder turns
+        pts = [9000, 10000, 11000, 12000, 13000, 4000, 4500]
+        row = plumbing(_trace(self.d / "ex.json", calls, pts), "recap")
+        self.assertEqual(row["notes_written"], 0)
+        self.assertEqual(row["explorer_injections"], 1)
+        self.assertTrue(row["recall_runs_after_compaction"])
+        self.assertFalse(row["plumbing_failed"])
 
     def test_the_9_nov_failure_is_flagged(self):
         calls = [("coder", "run_skill_script", {"skill_name": "graph-memory", "file_path": "scripts/recall.py",
