@@ -62,7 +62,9 @@ class ExtensionBackend(unittest.TestCase):
         import json
         import tempfile
         rows_path = Path(__file__).resolve().parents[1] / "results" / "run_rows.jsonl"
-        rows = [json.loads(l) for l in open(rows_path)]
+        # the registered rows only: the fixture adds its own aws-l40s rows, so real extension rows
+        # (committed once the extension ran) must not be counted twice
+        rows = [r for r in (json.loads(l) for l in open(rows_path)) if r["backend"] != "aws-l40s"]
         base = {k: v for k, v in rows[0].items()}
         ext = []
         for i, (x, y) in enumerate([(1, 0), (1, 0), (0, 0), (1, 1), (0, 1), (1, 0)]):
@@ -72,8 +74,10 @@ class ExtensionBackend(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             p1 = Path(d) / "rows.jsonl"
             p1.write_text("".join(json.dumps(r) + "\n" for r in rows + ext))
+            p0 = Path(d) / "registered.jsonl"
+            p0.write_text("".join(json.dumps(r) + "\n" for r in rows))
             with_ext = ar.main(p1, Path(d) / "a.json")
-            without = ar.main(rows_path, Path(d) / "b.json")
+            without = ar.main(p0, Path(d) / "b.json")
         for key in ("primary_resolve_run1", "sensitivity_resolve_all_available_runs", "repeats_run1",
                     "hypotheses_run1", "per_protocol_run1", "aa_calibration", "descriptive_run1"):
             self.assertEqual(json.dumps(with_ext[key], sort_keys=True, default=str),
@@ -90,7 +94,7 @@ class ReplicatesPhaseR(unittest.TestCase):
         import json
         import tempfile
         rows_path = Path(__file__).resolve().parents[1] / "results" / "run_rows.jsonl"
-        rows = [json.loads(l) for l in open(rows_path)]
+        rows = [r for r in (json.loads(l) for l in open(rows_path)) if r["backend"] != "aws-l40s"]
         base = {k: v for k, v in rows[0].items()}
         ext = [{**base, "backend": "aws-l40s", "arm": arm, "run": 1, "task_id": "fake_e", "success": s,
                 "exploratory_partial": False} for arm, s in (("recap", 1), ("none", 0))]
