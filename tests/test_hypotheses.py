@@ -48,5 +48,18 @@ class Hypotheses(unittest.TestCase):
         self.assertAlmostEqual(wilcoxon_one_sided([-1, -2])["p_one_sided"], 1.0)
 
 
+class Caps(unittest.TestCase):
+    def test_harness_wording(self):
+        from stats.caps import cap_hits
+        self.assertEqual(cap_hits("Agent exceeded session timeout (60 min)"), {"calls": False, "time": True, "turns": False})
+        self.assertEqual(cap_hits("Agent exceeded tool call budget (100 calls)")["calls"], True)
+        self.assertEqual(cap_hits("Agent exceeded turns budget (500 turns)")["turns"], True)
+        p = write([step("coder", 1, calls=("run_command",),
+                        content='{"status": "error", "error_type": "TimeoutExceeded", '
+                                '"error_message": "Session time budget exhausted (60 minutes)"}')])
+        self.assertEqual(cap_hits(None, p), {"calls": False, "time": True, "turns": False})
+        self.assertEqual(cap_hits(None, write([step("coder", 1)])), {"calls": False, "time": False, "turns": False})
+
+
 if __name__ == "__main__":
     unittest.main()

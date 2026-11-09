@@ -946,6 +946,65 @@ dataset) and writes three push directories.
   Freeze move: `stats/` is frozen shared code, so adding `stats/hypotheses.py` moves the
   frozen-shared baseline from 61e408a to cc69db5. The change is analysis-only. No file that either
   arm runs changed, and the recap arm runs at its pin 59f10a6.
+- **2026-11-09T04:51Z, the record corrected, before any recap-arm result is read.**
+  0. **Times.** The Kaggle 2-task recap smoke (`patrickpassos/renor-gemma4-recap-smoke` v1) was
+     pushed and started at **2026-11-09T04:45:47Z** (its `lastRunTime` in the Kaggle kernel
+     listing). That is 94 s BEFORE the detector commit cc69db52 (04:47:21Z) and 128 s before the
+     freeze commit 40f78b2f (04:47:55Z). An earlier chat message said "~05:25Z"; that was wrong.
+     No smoke output or log was read before either commit; the kernel was still running when both
+     were pushed. The detectors were written and frozen without seeing any recap-arm output.
+  1. **Cap detector against the harness's real wording** (`stats/caps.py`, tested). The wording
+     comes from the installed swegemma 0.2.11 source:
+     - run errors: "Agent exceeded tool call budget (N calls)", "Agent exceeded session timeout
+       (N min)", "Agent exceeded turns budget (N turns)";
+     - tool results: "Tool call budget exhausted", "Session time budget exhausted", "Turn budget
+       exhausted".
+
+     A cap can show only as a tool result, while the run ends on its own, so both places are read.
+     The first baseline report counted cap hits from run errors only, with a guessed time pattern,
+     and said 0. The detector reads 2 (run 1) and 4 (run 2) tool-call-budget hits in the Kaggle
+     baseline, 1 and 1 in Modal's, and no time or turn hits. The detector was fixed before any
+     recap row was read, so it is not post-hoc.
+  2. **Quota.** Kaggle reports 46,131 s used of 30 h at 04:50Z: 12.81 quota-hours used, 17.19
+     left (about 8.6 wall-hours on 4x L4), resetting Sat 14 Nov 00:00Z. The "~11 left" figure
+     elsewhere was not Kaggle's: my last projection was 15.3, which assumed the baseline still
+     needed about 1 more wall-hour, but it had almost finished (its session was 4.28 wall-hours).
+     Under the cut rule:
+     - smoke: 0.5-1.1 wall-h;
+     - recap run 1: about 3.0-3.4 wall-h (baseline run 1 took 2.3, plus larger prompts and +30-35%
+       for submit loops);
+     - recap run 2: the same again.
+
+     That totals 6.5-7.9 wall-hours against 8.6 available, so run 2 also fits, with 0.7-2.1
+     wall-hours to spare. Run 2 still starts only after run 1 has completed on all 32 tasks, and
+     only if the quota then still covers it.
+  3. **A/A calibration (CPU; the no-memory arm against itself, run 2 vs run 1),** the noise floor
+     and the detectors' behaviour with no treatment:
+
+     | | Kaggle 32 | Modal 16 |
+     | --- | --- | --- |
+     | resolved, run 1 / run 2 | 14 / 16 | 11 / 12 |
+     | resolve diff [95% CI] | +0.063 [-0.094, +0.219] | +0.063 [-0.125, +0.250] |
+     | McNemar | b=4, c=2, p=0.69 | b=2, c=1, p=1.0 |
+     | H-a (run 2 more / fewer / equal) | 13 / 11 / 8 | 6 / 2 / 8 |
+     | H-a one-sided p, run 2 > run 1 / run 1 > run 2 | 0.40 / 0.61 | 0.19 / 0.88 |
+     | H-b leaks, run 1 / run 2 | 5 / 3 | 0 / 0 |
+     | H-b one-sided Fisher p, either direction | 0.87 / 0.35 | 1.0 / 1.0 |
+     | repeat-rate diff [95% CI], n tasks | -1.97 [-7.38, +2.70], 26 | +0.27 [-1.24, +1.58], 14 |
+     | repeat-rate Wilcoxon p, 10% trimmed mean | 0.27, -1.12 | 0.51, +0.48 |
+     | overflows, run 1 / run 2 | 5 / 4 | 1 / 0 |
+
+     No detector fires on the A/A contrast at alpha = 0.05. Without any treatment, H-a moves by up
+     to 6/2 on 16 tasks, and the repeat rate by up to about 2 per compaction (mean) on Kaggle.
+     H-b's base rate differs by backend: on Kaggle the no-memory arm already leaks in 5/32 and 3/32
+     runs, against 0/16 and 0/16 on Modal. So Kaggle's H-b replication starts from a non-zero
+     base rate, and is reported with that stated.
+  4. **Minimal detectable effect.** Assume no-effect discordance like the A/A flip rate (18.75%)
+     over 48 run-1 pairs (16 Modal + 32 Kaggle). The paired SE of the resolve-rate difference is
+     about sqrt(0.1875/48) = 0.063, so 80% power at alpha = 0.05 two-sided needs a true effect of
+     about 2.8 x 0.063 = 0.18, i.e. about +/-18 points of resolve rate. The paper states it can rule
+     out large effects, not small ones, and reports the final CI as the range of effects it
+     excludes.
 
 ## 11. Stretch: rejection-sampling LoRA (exploratory, after the headline runs)
 
