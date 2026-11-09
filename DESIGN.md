@@ -631,6 +631,7 @@ dataset) and writes three push directories.
 
   This per-note cost counts toward the recap arms' context use and is not part of the 600-token
   recap budget. It is reported with the arm's token totals.
+
 ## 11. Stretch: rejection-sampling LoRA (exploratory, after the headline runs)
 
 LoRA adapters are allowed (.safetensors, multi-LoRA). The stretch is a 12B LoRA trained on 12B's
