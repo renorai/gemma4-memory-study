@@ -131,14 +131,21 @@ class PaperTests(unittest.TestCase):
         self.assertIn("VibeMemBench", body)
 
     def test_no_invented_results(self):
-        text = (ROOT / "paper" / "WRITEUP.md").read_text()
-        tables = re.findall(r"<!-- RESULTS-TABLE -->\n(.*?)\n\n", text, flags=re.S)
-        self.assertGreaterEqual(len(tables), 5)
-        for table in tables:
-            for line in table.splitlines()[2:]:
-                cells = [c.strip() for c in line.strip().strip("|").split("|")]
-                self.assertTrue(all(c == "TODO" for c in cells[1:]), line)
-        self.assertIn("\\TODO", (ROOT / "paper" / "arxiv" / "main.tex").read_text())
+        # Before any result existed this asserted every results cell was TODO. With results in
+        # (results/, 2026-11-09) the same rule becomes: every number in the Writeup traces to
+        # results/analysis.json, results/run_rows.jsonl or DESIGN.md (paper/check_numbers.py).
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("check_numbers", ROOT / "paper" / "check_numbers.py")
+        cn = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cn)
+        self.assertEqual(cn.main(), 0, "a number in paper/WRITEUP.md matches no source")
+        # and the check can fail: one invented number in the text is caught
+        real = cn.body
+        cn.body = lambda: real() + "\n\nRecap resolved 87.31 percent of tasks.\n"
+        try:
+            self.assertEqual(cn.main(), 1)
+        finally:
+            cn.body = real
 
     def test_bib_entries_are_verifiable_and_cited_keys_exist(self):
         bib = (ROOT / "paper" / "arxiv" / "refs.bib").read_text()
