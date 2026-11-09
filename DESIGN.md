@@ -866,7 +866,7 @@ dataset) and writes three push directories.
        that include 12 in the minute of the freeze. A burst of 29 at 03:15Z did not freeze it.
      The memory arm has more rejections per request, so the freeze may be related to the arm.
      The cause is not established.
-- **2026-11-09T04:45Z, Modal run-1 rerun done; no watchdog trigger; process observations.** The 10
+- **2026-11-09T04:39Z, Modal run-1 rerun done; no watchdog trigger; process observations.** The 10
   missing run-1 recap tasks ran at 59f10a6 (code 16e71dab) from 04:12 to 04:37Z and all finished,
   so recap run 1 is complete on all 16 tasks. The watchdog did not fire.
   - Prompt-too-long rejections in the rerun: 24 of 1,464 requests (1.6%). Over both recap
