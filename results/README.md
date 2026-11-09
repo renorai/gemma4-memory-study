@@ -15,6 +15,6 @@ Rows in `run_rows.jsonl`, by backend:
 | Backend | No memory | Recap |
 |---|---|---|
 | Modal (H100) | runs 1-2, ff9bf75d | run 1 (16 tasks) and run 2 (7 tasks, partial), 59f10a6 |
-| Kaggle (4x L4) | runs 1-2, dee8321a | run 1, 16e71dab = 59f10a6 |
+| Kaggle (4x L4) | runs 1-2, dee8321a | runs 1-2, 16e71dab = 59f10a6 |
 
-The environment hash is 7f74aeda for all. Kaggle recap run 2 is added when it lands.
+The environment hash is 7f74aeda for all. The 7 Modal recap run-2 rows carry `exploratory_partial=true` and enter no registered figure.

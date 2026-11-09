@@ -57,13 +57,14 @@
    "tasks": 48,
    "mean_diff": 0.052083333333333336,
    "bootstrap95": [
-    -0.020833333333333332,
+    -0.03125,
     0.125
    ],
    "task_runs_used": {
     "none/run1": 48,
     "none/run2": 48,
-    "recap/run1": 48
+    "recap/run1": 48,
+    "recap/run2": 32
    }
   },
   "modal": {
@@ -83,13 +84,14 @@
    "tasks": 32,
    "mean_diff": 0.0625,
    "bootstrap95": [
-    0.0,
-    0.140625
+    -0.015625,
+    0.15625
    ],
    "task_runs_used": {
     "none/run1": 32,
     "none/run2": 32,
-    "recap/run1": 32
+    "recap/run1": 32,
+    "recap/run2": 32
    }
   }
  },
@@ -98,14 +100,14 @@
    "tasks": 48,
    "mean_diff": 0.041666666666666664,
    "bootstrap95": [
-    -0.03125,
-    0.11458333333333333
+    -0.041666666666666664,
+    0.125
    ],
    "task_runs_used": {
     "none/run1": 48,
     "none/run2": 48,
     "recap/run1": 48,
-    "recap/run2": 7
+    "recap/run2": 39
    }
   },
   "modal": {
@@ -126,13 +128,14 @@
    "tasks": 32,
    "mean_diff": 0.0625,
    "bootstrap95": [
-    0.0,
-    0.140625
+    -0.015625,
+    0.15625
    ],
    "task_runs_used": {
     "none/run1": 32,
     "none/run2": 32,
-    "recap/run1": 32
+    "recap/run1": 32,
+    "recap/run2": 32
    }
   }
  },
