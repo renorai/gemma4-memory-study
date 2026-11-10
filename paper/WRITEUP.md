@@ -2,7 +2,7 @@
 Kaggle Writeup. Hard limit: 3,000 words, tables and captions included (host ruling); figures and
 references do not count. HTML comments are excluded from the count.
 Every number comes from results/analysis.json (regenerate: python results/analyze_rows.py), from
-DESIGN.md section 10, or, for the delivery counts only, from results/run_rows.jsonl through
+DESIGN.md section 10, or, for the delivery counts and the extension overflow and plumbing counts only, from results/run_rows.jsonl through
 notebook/paper_figures.py:delivery. paper/check_numbers.py checks each number and the word count.
 Run 2 of the Kaggle recap arm is sensitivity only (DESIGN.md, 2026-11-09T07:48Z) and cannot change
 the headline.
@@ -171,7 +171,7 @@ caught in the `submit_patch` loop (Section 3.4).
 
 **Extension.** On 50 new tasks the estimate reversed: memory resolved 18 and no memory 23, with 6
 tasks solved only without memory and 1 only with it. The interval includes 0 and the exact McNemar
-p is 0.125, so this is not significant by the registered test either. Neither estimate exceeds the
+p is 0.125, so this is not significant by the registered test either. (Descriptive, not registered: in the extension, run 1 hit a context overflow in 12 of 50 no-memory runs and 14 of 50 memory runs, and 13 memory runs were flagged `plumbing_failed`. We make no claim about the cause.) Neither estimate exceeds the
 minimal detectable effect (about 18 points for 48 pairs, 17 for 50), and we registered no test of
 heterogeneity between sets, so the first result is not a stable finding. The combined estimate is
 -1.0 point [-8.3, +6.3]. It is secondary, pools backends and makes no confirmatory claim. We read

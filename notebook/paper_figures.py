@@ -40,6 +40,18 @@ def delivery(rows):
     return out
 
 
+def extension_context(rows):
+    """Context overflows per arm and recap runs flagged plumbing_failed, extension (aws-l40s), run 1.
+    Descriptive, not registered (row-derived)."""
+    out = {}
+    for arm in ("none", "recap"):
+        rr = [r for r in rows if r["backend"] == "aws-l40s" and r["run"] == 1 and r["arm"] == arm]
+        out[arm] = {"runs": len(rr), "context_overflow": sum(1 for r in rr if r["context_overflow"])}
+    out["recap"]["plumbing_failed"] = sum(1 for r in rows if r["backend"] == "aws-l40s" and r["run"] == 1
+                                          and r["arm"] == "recap" and r.get("plumbing_failed"))
+    return out
+
+
 def pts(v):
     """One decimal, half away from zero (6.25 -> +6.3), as the paper's text rounds."""
     from decimal import Decimal, ROUND_HALF_UP

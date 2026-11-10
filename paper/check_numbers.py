@@ -19,7 +19,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "notebook"))
-from paper_figures import delivery  # noqa: E402
+from paper_figures import delivery, extension_context  # noqa: E402
 
 NUM = re.compile(r"(?<![\w.])[-+]?\d[\d,]*(?:\.\d+)?(?![\w])")
 
@@ -67,7 +67,7 @@ def sources():
         a |= renderings(v)
     rows = [json.loads(x) for x in (ROOT / "results" / "run_rows.jsonl").read_text().splitlines() if x.strip()]
     d = set()
-    for v in walk(delivery(rows)):
+    for v in walk([delivery(rows), extension_context(rows)]):
         d |= renderings(v)
     design = {norm(t) for t in NUM.findall((ROOT / "DESIGN.md").read_text())}
     design |= {t.rstrip("0").rstrip(".") for t in design if "." in t}
