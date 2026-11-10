@@ -23,11 +23,10 @@ A Pre-Registered Null Result for Automatic Finding Re-Injection\\in a Small Gemm
 
 \begin{abstract}
 When a coding agent's context is compacted, it loses what it found. We ask whether automatically
-re-injecting an agent's last finding after compaction helps a small model solve real repository tasks. The
-treatment is a test-harness mechanism, not the Renor product: the harness re-injects the explorer
-sub-agent's latest finding into every coder request, plus any notes the agent chose to write (it
-almost never did). It does \emph{not} test agent-written memory, and no result here speaks to
-Renor. We compare it with no memory using Gemma~4 31B (QAT,
+re-injecting an agent's last finding after compaction helps a small model solve real repository tasks.
+In the treatment, the harness re-injects the explorer sub-agent's latest finding into every coder request, plus any notes the agent chose to write (it
+almost never did). It does \emph{not} test agent-written memory.
+We compare it with no memory using Gemma~4 31B (QAT,
 4-bit) in the Gemma~4 Developer Agent harness~\citep{kaggle2026gemma4agent}, on 98 paired tasks
 across three backends (Modal H100, 16 tasks; Kaggle 4$\times$L4, 32 tasks; AWS L40S, 50 tasks added in
 a pre-registered extension). The pre-registered primary outcome, pooled run-1 resolve rate on the
@@ -47,7 +46,7 @@ claims on task sets of this size sit inside run-to-run noise.
 \end{abstract}
 
 \section{Introduction}
-Renor's product promise is that context told once stays available to an agent when it is relevant.
+The promise of agent memory is that context told once stays available to an agent when it is relevant.
 For a small coding agent, the first place that promise breaks is inside a single task. The Gemma~4
 harness compacts the conversation when the previous prompt reaches 14,336 tokens. In 16 no-memory
 throughput traces, 13 tasks compacted, and 53 of 83 exact repeats of a read, a command or an
@@ -60,8 +59,7 @@ beat memory-off. We therefore built the study expecting a likely null result and
 report one honestly.
 
 \paragraph{Question.} Does automatically re-injecting the explorer's last finding after compaction
-help Gemma~4 31B resolve real repository tasks? This tests a harness mechanism motivated by that
-promise, not the Renor product.
+help Gemma~4 31B resolve real repository tasks?
 
 \paragraph{Contributions.}
 \begin{enumerate}

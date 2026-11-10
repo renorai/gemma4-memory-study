@@ -15,9 +15,8 @@ Patrick Passos (Renor)
 ## Abstract
 
 When a coding agent's context is compacted, it loses what it found. We ask whether automatically
-re-injecting an agent's last finding after compaction helps a small model solve real repository tasks. The treatment
-is a test-harness mechanism, not the Renor product: the harness re-injects the explorer sub-agent's
-latest finding into every coder request, plus any notes the agent chose to write. It does **not** test agent-written memory. We compare it with no memory using Gemma 4 31B (QAT,
+re-injecting an agent's last finding after compaction helps a small model solve real repository tasks.
+In the treatment, the harness re-injects the explorer sub-agent's latest finding into every coder request, plus any notes the agent chose to write. It does **not** test agent-written memory. We compare it with no memory using Gemma 4 31B (QAT,
 4-bit) in the Gemma 4 Developer Agent harness, on 98 paired tasks across three backends (Modal H100,
 16 tasks; Kaggle 4x L4, 32 tasks; AWS L40S, 50 tasks added in a pre-registered extension).
 
@@ -39,7 +38,7 @@ Modal. Something was injected at only 47% to 65% of compactions. On two Modal ru
 
 ## 1. Introduction
 
-Renor promises that context told once stays available when relevant. For a small agent, that promise first breaks inside a single task. The Gemma 4
+Agent memory promises that context told once stays available when relevant. For a small agent, that promise first breaks inside a single task. The Gemma 4
 harness compacts the conversation when the previous prompt reaches 14,336 tokens. In 16 no-memory
 throughput traces, 13 tasks compacted, and 53 of 83 exact repeats of a read, a command or an
 explorer question came after a compaction. Experience memory across tasks targets a different
