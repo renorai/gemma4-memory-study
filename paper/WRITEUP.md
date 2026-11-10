@@ -161,7 +161,7 @@ p is 0.125, so this is not significant by the registered test either. (Descripti
 minimal detectable effect (about 18 points for 48 pairs, 17 for 50), and we registered no test of
 heterogeneity between sets, so the first result is not a stable finding. The combined estimate is
 -1.0 point [-8.3, +6.3]. It is secondary, pools backends and makes no confirmatory claim. We read
-it as no evidence of an effect in either direction, Its 95% interval excludes harms larger than about 8 points and gains larger than about 6; the
+it as no evidence of an effect in either direction. Its 95% interval excludes harms larger than about 8 points and gains larger than about 6; the
 design had 80% power only for effects of about 12 points or more.
 
 ![Figure 1](figures/forest.png)
