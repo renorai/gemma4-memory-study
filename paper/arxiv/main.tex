@@ -23,8 +23,8 @@
 \maketitle
 
 \begin{abstract}
-When a coding agent's context is compacted, it loses what it found. We ask whether automatically
-re-injecting an agent's last finding after compaction helps a small model solve real repository tasks.
+When a coding agent runs out of room, its earlier findings are cut and it forgets them. We tested a simple fix: automatically putting the agent's last finding back in front of it. We fixed the rules in advance and ran 98 coding tasks with and without this reminder, using a small Gemma~4 model. The reminder made no measurable difference: across all 98 tasks, 47 were solved with it and 48 without. Running the same task twice changed the outcome about one time in five, so a single run on a few dozen tasks cannot show whether memory helps.
+
 In the treatment, the harness re-injects the explorer sub-agent's latest finding into every coder request, plus any notes the agent chose to write (it
 almost never did). It does \emph{not} test agent-written memory.
 We compare it with no memory using Gemma~4 31B (QAT,
@@ -116,7 +116,7 @@ decision was made from no-memory traces only, before any memory-arm run.
 \item \textbf{Adherence and delivery:} notes written, and the share of compactions at which something
   was injected. Both were registered as outcomes.
 \item \textbf{Extension:} after seeing the 48-pair result, we pre-registered 50 more tasks on a third
-  backend (commit 51a75857, before any extension row): one run per arm at the frozen pins, with its
+  backend (commit bdf6c0e3, before any extension row): one run per arm at the frozen pins, with its
   own two-sided primary (exact McNemar, Newcombe interval). The combined 98-pair analysis,
   stratified by backend, is secondary. Pre-registered replicate runs of every task (Phase~R) are reported separately.
 \end{itemize}
@@ -366,8 +366,8 @@ arm.
 \paragraph{Reproducibility.} \code{results/run\_rows.jsonl} holds one row per run, with outcomes
 and measures only. \code{python results/analyze\_rows.py} regenerates every number. The notebook
 redraws both figures. \code{paper/check\_numbers.py} checks each number in the Writeup against the
-analysis output, the rows and the change log. Code: \url{https://github.com/patrickpassosb/renor}
-(branch \code{research/kaggle-gemma4-graph-memory}).
+analysis output, the rows and the change log. Code, data and the commit history of the pre-registration:
+\url{https://github.com/renorai/gemma4-memory-study}.
 
 \bibliographystyle{plainnat}
 \bibliography{refs}

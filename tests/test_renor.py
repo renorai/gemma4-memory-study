@@ -1,7 +1,7 @@
 """Renor's retrieval rules in Python (memory/renor.py), tested against Renor's own test cases.
 
-Each ported case cites its TypeScript test at patrickpassosb/renor main
-2fd556b647f2c85852af21177714d2ed20fafa98. The FTS5 cross-check runs the same documents through
+Each ported case cites its TypeScript test by source path; that source snapshot is not part of this
+study export. The FTS5 cross-check runs the same documents through
 SQLite's real `porter unicode61` FTS5 table and bm25(), when this Python's sqlite3 has FTS5.
 """
 import json

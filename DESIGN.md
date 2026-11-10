@@ -172,7 +172,8 @@ submission/                       (template; runner/build_submission.py writes o
 
 The memory is Renor's: keyword-OR with stemming, supersession, and token-budgeted recall, applied
 to lessons anchored on code structure. `memory/renor.py` ports the rules from Renor's TypeScript
-engine to standard-library Python and cites each one by file:line (main 2fd556b). The tests
+engine to standard-library Python and cites each one by file:line. The source snapshot is outside
+this study export. The tests
 replay Renor's own test cases (`tests/test_renor.py`). **No embeddings are used anywhere.**
 
 | Step | Rule | Renor source |
@@ -306,9 +307,9 @@ dataset) and writes three push directories.
   - Task snapshots ship as .tgz; `snapshot_for` now extracts them (Python sources only).
 - **2026-11-08T21:45Z, before any memory-arm result exists (owner decision of 8 Nov, option B).**
   The memory arms' retrieval is now Renor's memory design, ported to Python (section 5.1).
-  The `none` arm and every shared file are unchanged since 95e9256, the last commit that
+  The `none` arm and every shared file are unchanged since 3acc3fd4, the last commit that
   changed shared code; `tests/test_frozen_shared.py` checks this against that commit. Every
-  `none` baseline run must use 95e9256 or later: no `none` run had been reported before it. PREREG.md is unchanged; this entry records how the code
+  `none` baseline run must use 3acc3fd4 or later: no `none` run had been reported before it. PREREG.md is unchanged; this entry records how the code
   departs from it.
   - Ranking: candidates are still chosen by strong anchor keys (node, node_khop, shuffled). They
     are now ranked by Renor's keyword score against the issue text and the named symbols, newest
@@ -435,7 +436,7 @@ dataset) and writes three push directories.
   next fix is per-snapshot versions: for packages with several competition wheels (starlette,
   pydantic, sqlmodel, ...), take the newest one the snapshot's pyproject allows, not the newest
   overall.
-- **2026-11-08, frozen-shared baseline moves to 11d6a17.** It and ae4cacb changed shared code:
+- **2026-11-08, frozen-shared baseline moves to 7ba84c70.** It and 26e6b947 changed shared code:
   the test sandbox, task validation, arm runner, seeded subset, analysis and the recap plumbing
   (next entry). No `none` arm run had been made before it, and every `none` baseline run uses
   it or later. `tests/test_frozen_shared.py` now pins it and also freezes
@@ -480,7 +481,7 @@ dataset) and writes three push directories.
   `code_sha256` (the code dataset) and `env_sha256` (sha256 of the scorer-environment manifest,
   canonical JSON, `kernels/scorer_sandbox.py:manifest_sha256`). Every session line in
   `out/<model>/sessions.jsonl` records both too.
-- **2026-11-08T23:25Z, frozen-shared baseline moves to b495cfd.** It and b04923a include the per-snapshot versions,
+- **2026-11-08T23:25Z, frozen-shared baseline moves to 5a631794.** It and d16b9dfa include the per-snapshot versions,
   the repeat-rate statistics, the provenance per row, the replay check and the two-runner split. No `none` arm run had
   been made before it. The no-memory baseline and every later arm run use this code.
 - **2026-11-08T23:27Z, two runners, one subset.** The 48 validated tasks are split deterministically in seed
@@ -497,8 +498,8 @@ dataset) and writes three push directories.
   `kernels/replaycheck` (Kaggle `patrickpassos/renor-gemma4-replaycheck` v3) replayed the
   recorded `httpx_3672` throughput trace (31B, arm `none`) through the harness twice, each time
   against a mock model server that returns the trace's 29 recorded agent steps in order:
-  - once at 7e75bf0e, the commit before the plumbing (code hash dc480958...);
-  - once at the final pin ff9bf75d (code hash dee8321a...).
+  - once at 580fbb7f, the commit before the plumbing (code hash dc480958...);
+  - once at the final pin a1b8e65c (code hash dee8321a...).
 
   Results:
   - The `none` submissions are byte-identical.
@@ -562,9 +563,9 @@ dataset) and writes three push directories.
   because both arms of a task run on the same backend, with the same code and environment
   hashes. The full table (seed rank, task, repo, backend) is in the run outputs.
 - **2026-11-09T00:27Z, the replay check ran at the final pin.** Its `post` tree has code hash dee8321a..., the
-  hash of ff9bf75d, checked against the replay dataset. Its `pre` tree is 7e75bf0e (dc480958...).
-- **2026-11-09T01:35Z, pin moved from ff9bf75d: the recap plumbing failed in the real harness;
-  written before any memory-arm result.** The first Modal recap check (2 tasks, ff9bf75d, after the
+  hash of a1b8e65c, checked against the replay dataset. Its `pre` tree is 580fbb7f (dc480958...).
+- **2026-11-09T01:35Z, pin moved from a1b8e65c: the recap plumbing failed in the real harness;
+  written before any memory-arm result.** The first Modal recap check (2 tasks, a1b8e65c, after the
   Modal no-memory arm) wrote no note at all. Cause, from its traces:
   - Under `--sandbox subprocess` (every Kaggle and Modal run), `run_skill_script` runs ADK's
     self-extracting wrapper through the sandbox, but only that command is rewritten. The
@@ -591,10 +592,10 @@ dataset) and writes three push directories.
   - `fake_harness.Sandbox` now runs skill scripts as the real subprocess sandbox does (literal
     arguments, TMPDIR/HOME/PYTHONPATH of the task, ADK's wrapper). `mode="container"` keeps the
     old rewriting for the official scorer. `tests/test_skill_sandbox.py` reproduces the failure
-    (it fails on ff9bf75d with the same message) and checks per-task isolation with two
+    (it fails on a1b8e65c with the same message) and checks per-task isolation with two
     concurrent tasks.
   The new pin is recorded in the run outputs (`code_sha256` per row). The 32 Modal `none` rows
-  ran at dee8321a (ff9bf75d). Every frozen path is byte-identical at the new pin, and a `none`
+  ran at dee8321a (a1b8e65c). Every frozen path is byte-identical at the new pin, and a `none`
   submission is identical, so those rows stay valid and pair with recap rows from the new pin.
 - **2026-11-09T01:35Z, plumbing assertions and the analysis population; written before any
   memory-arm result.** Every memory-arm row gets the fields of `memory/plumbing.py`, read from its
@@ -619,7 +620,7 @@ dataset) and writes three push directories.
   has limited headroom on that subset, and the repeated-action rate (stats/repeats.py) is the
   key mechanism metric. The resolve rate stays the primary outcome, as registered.
 
-- **2026-11-09T01:35Z, a note's token cost now includes the notes path.** Since ff43737, every
+- **2026-11-09T01:35Z, a note's token cost now includes the notes path.** Since 530a8242, every
   `note` acknowledgement ends with ` [<notes folder>/notes.jsonl]`. `memory/plumbing.py`
   (`_NOTES_PATH`) reads it back to check that notes land in the task's own folder. Measured with
   `renor.count_tokens` (`tests/test_workmem.py` keeps the note's own cost under 20 tokens with the
@@ -631,12 +632,12 @@ dataset) and writes three push directories.
 
   This per-note cost counts toward the recap arms' context use and is not part of the 600-token
   recap budget. It is reported with the arm's token totals.
-- **2026-11-09T01:49Z, pin moved from ff43737: the second Modal recap check never reached the
-  skill; written before any memory-arm result.** At ff43737 (code 00a0a49a...), on the same 2
+- **2026-11-09T01:49Z, pin moved from 530a8242: the second Modal recap check never reached the
+  skill; written before any memory-arm result.** At 530a8242 (code 00a0a49a...), on the same 2
   tasks (fastapi_14487, fastapi_14873), neither agent called `recall.py`. One saved the issue to
   /tmp/task.md and went straight to `explorer`; the other did not save it at all. With no status
   line, no working notes were taken, and the plumbing was not exercised (both runs
-  `plumbing_failed`). At ff9bf75d the same task had reached the skill. The prompt's "1. Then run
+  `plumbing_failed`). At a1b8e65c the same task had reached the skill. The prompt's "1. Then run
   the recall script" read as optional. Change (memory.md only): the recall is now the explicit
   second action, before `explorer` or any read, and must not be skipped, because its first line
   says which memory the run has. Shared paths are unchanged.
@@ -653,7 +654,7 @@ dataset) and writes three push directories.
   - **Proof on raw traces, CPU** (old vs fixed reader):
     - throughput (16 traces): identical tool/argument/turn sequences and repeat metrics for 16 of
       16; non-empty outputs go from 0 to 1,033 of 1,056 calls;
-    - Modal no-memory, ff9bf75d (32 traces): identical for 32 of 32; outputs from 0 to 1,584 of
+    - Modal no-memory, a1b8e65c (32 traces): identical for 32 of 32; outputs from 0 to 1,584 of
       1,656 calls. Recomputed from the raw traces: run 1 resolved 11/16 with 40 repeats, run 2
       12/16 with 54 repeats, unchanged.
     - The raw traces of all three sources contain observation.content.
@@ -675,7 +676,7 @@ dataset) and writes three push directories.
   frozen, and the change is recorded here.
 - **2026-11-09T02:20Z, mechanism move: automatic recall is the recap arm, and the freeze moves;
   decided on smoke adherence, before any memory-arm result.** The reason is adherence, not
-  outcomes. In 3 recap checks (6 agent runs, ff9bf75d, ff43737 and 765dbb0), no run wrote a single
+  outcomes. In 3 recap checks (6 agent runs, a1b8e65c, 530a8242 and b6ed3fb0), no run wrote a single
   note. At most one per check reached the skill, and none saw a recap after a compaction. Asking
   the agent to fetch its recap does not work for this model. The submission format offers an
   automatic path, and the recap arm now uses it:
@@ -697,14 +698,14 @@ dataset) and writes three push directories.
   Freeze move: runner/build_submission.py adds the sub-agent for memory arms only, and
   runner/validate.py accepts `{key?}` in a prompt only for a key that one of the submission's
   agents writes with `output_key`, and only in a memory arm. The no-memory build is unchanged:
-  `tests/test_none_build_identity.py` builds `none` with this tree, with 824dc84 (the frozen
-  baseline) and with ff9bf75d (the Modal no-memory pin), for both model aliases, and requires
+  `tests/test_none_build_identity.py` builds `none` with this tree, with e6a680c2 (the frozen
+  baseline) and with a1b8e65c (the Modal no-memory pin), for both model aliases, and requires
   byte-identical files. The CPU replay of the no-memory arm's model requests is rerun at the new
   pin and recorded below. The recap, recap_shuffled and node builds pass the harness's own
   `validate_directory` and compile with its `compile_submission` (adk-submission 0.2.13,
   google-adk 1.36.1); `notes.output_key` is `working_notes`.
 - **2026-11-09T02:40Z, the no-memory replay at the new pin.** kernels/replaycheck ran on Modal CPU:
-  pre ff9bf75d (code dee8321a, the Modal no-memory pin), post 8191199 (code 24bd5fb3), task
+  pre a1b8e65c (code dee8321a, the Modal no-memory pin), post 8191199 (code 24bd5fb3), task
   httpx_3672, one recorded throughput trace, the envcheck scorer env.
   - Both trees sent 33 model requests and exited 0, and the `none` submissions are byte-identical.
   - The requests are identical after masking. Besides the kernel's masks (sandbox paths,
@@ -753,7 +754,7 @@ dataset) and writes three push directories.
   sub-agents' final messages, for the sub-agents that the run's built submission gives an
   `output_key`. Caveat for `recap_shuffled`: its explorer finding is the agent's own, so that
   control misleads only through the notes page.
-- **2026-11-09T03:06Z, out-of-sample smoke round 2 at 63d9fd4 meets the bar; the recap arm is
+- **2026-11-09T03:06Z, out-of-sample smoke round 2 at a90615d1 meets the bar; the recap arm is
   frozen; before any memory-arm result on the 48.** Same two tasks, 1 run each:
   - both `plumbing_failed` false: status on, no memory error, and injected state before every
     compaction (`injected_share` 1.0 on both; 1 and 5 compactions);
@@ -767,7 +768,7 @@ dataset) and writes three push directories.
   script's result, so it is now given to the call that names the same file, not to the first
   call.
   **Frozen for the recap arm:** the prompt (runner/prompt_parts/memory.md), the notes and
-  explorer injection, and the 1,500-token page cap, as at 63d9fd4. The pin is the commit that
+  explorer injection, and the 1,500-token page cap, as at a90615d1. The pin is the commit that
   adds this entry, whose code hash is recorded per row.
 - **2026-11-09T03:10Z, overflow headroom, caps, recap_shuffled and the Kaggle cut rule; written before any
   memory-arm result is read. DESIGN only; the frozen arm is unchanged.**
@@ -809,7 +810,7 @@ dataset) and writes three push directories.
      working memory. The adherence result is a headline finding in its own right: 0 notes in 6
      smoke runs, and 1 after the explicit instruction.
 - **2026-11-09T04:05Z, Modal recap arm incomplete: the vLLM server hung (infrastructure, not an
-  outcome).** The Modal recap arm (59f10a6, code 16e71dab, 16 tasks x 2 runs, both runs at
+  outcome).** The Modal recap arm (94508117, code 16e71dab, 16 tasks x 2 runs, both runs at
   once at concurrency 8) started at 03:11Z. At 03:27:32Z vLLM stopped writing anything, even
   its periodic metrics, with 14 requests running, and GPU use fell to 0%. No task finished after
   that. The last lines before the stop are context-length validation errors, which are normal
@@ -840,7 +841,7 @@ dataset) and writes three push directories.
      total past $24.
   3. **Lost to infrastructure:** a task-run in flight at a freeze is rerun once, from scratch,
      the same way in both arms. The Modal recap arm's 10 missing run-1 tasks are rerun under this
-     rule, at the same pin (59f10a6, code 16e71dab). They run as one eval at concurrency 10, so
+     rule, at the same pin (94508117, code 16e71dab). They run as one eval at concurrency 10, so
      all 10 run at once, below the 16 that ran at once in the no-memory arm.
   4. **Modal pairing:** the primary is run 1 against run 1, complete on all 16 tasks after the
      rerun. The sensitivity check is the per-task mean over each arm's available runs. The 7
@@ -867,7 +868,7 @@ dataset) and writes three push directories.
      The memory arm has more rejections per request, so the freeze may be related to the arm.
      The cause is not established.
 - **2026-11-09T04:39Z, Modal run-1 rerun done; no watchdog trigger; process observations.** The 10
-  missing run-1 recap tasks ran at 59f10a6 (code 16e71dab) from 04:12 to 04:37Z and all finished,
+  missing run-1 recap tasks ran at 94508117 (code 16e71dab) from 04:12 to 04:37Z and all finished,
   so recap run 1 is complete on all 16 tasks. The watchdog did not fire.
   - Prompt-too-long rejections in the rerun: 24 of 1,464 requests (1.6%). Over both recap
     containers that is 94 of 2,492 (3.8%), against 5.1% for no-memory. The rejection rate is
@@ -942,15 +943,15 @@ dataset) and writes three push directories.
       definitions. The frozen code above is the definition used for replication.
     - H-b: 6/16 vs 0/16, one-sided Fisher p=0.0088.
   - A failure to replicate on Kaggle is reported as such. Kaggle runs a different backend (4x L4
-    vs H100), and the arms are otherwise identical (code pin 59f10a6, env hash 7f74aeda...).
+    vs H100), and the arms are otherwise identical (code pin 94508117, env hash 7f74aeda...).
   Freeze move: `stats/` is frozen shared code, so adding `stats/hypotheses.py` moves the
-  frozen-shared baseline from 61e408a to cc69db5. The change is analysis-only. No file that either
-  arm runs changed, and the recap arm runs at its pin 59f10a6.
+  frozen-shared baseline from 30a5e68e to d963ac05. The change is analysis-only. No file that either
+  arm runs changed, and the recap arm runs at its pin 94508117.
 - **2026-11-09T04:51Z, the record corrected, before any recap-arm result is read.**
   0. **Times.** The Kaggle 2-task recap smoke (`patrickpassos/renor-gemma4-recap-smoke` v1) was
      pushed and started at **2026-11-09T04:45:47Z** (its `lastRunTime` in the Kaggle kernel
-     listing). That is 94 s BEFORE the detector commit cc69db52 (04:47:21Z) and 128 s before the
-     freeze commit 40f78b2f (04:47:55Z). An earlier chat message said "~05:25Z"; that was wrong.
+     listing). That is 94 s BEFORE the detector commit d963ac05 (04:47:21Z) and 128 s before the
+     freeze commit 9f09668c (04:47:55Z). An earlier chat message said "~05:25Z"; that was wrong.
      No smoke output or log was read before either commit; the kernel was still running when both
      were pushed. The detectors were written and frozen without seeing any recap-arm output.
      The smoke ran only on the out-of-sample tuning tasks fastapi_14301 and rich_3063, and H-a/H-b
@@ -1008,7 +1009,7 @@ dataset) and writes three push directories.
      about 2.8 x 0.063 = 0.18, i.e. about +/-18 points of resolve rate. The paper states it can rule
      out large effects, not small ones, and reports the final CI as the range of effects it
      excludes.
-  Freeze move: adding `stats/caps.py` moves the frozen-shared baseline from cc69db5 to 65f28b4.
+  Freeze move: adding `stats/caps.py` moves the frozen-shared baseline from d963ac05 to e39698bd.
   The change is analysis-only; no file that either arm runs changed.
 - **2026-11-09T07:48Z, analysis hierarchy, written before any run-2 recap row is read.** Run 1 pooled over 48
   pairs (Modal 16 + Kaggle 32), with the bootstrap stratified by backend, is PRIMARY. The per-task
@@ -1047,8 +1048,8 @@ dataset) and writes three push directories.
   2. **Disclosure.** The extension was decided after seeing the 48-pair result. It is a
      replication on a third backend (aws-l40s), with its own two-sided primary:
      - test: resolved, paired, exact McNemar plus the Newcombe method 10 interval;
-     - 1 run per arm, at the frozen pins: no memory with a build byte-identical to 61e408a,
-       recap at 59f10a6.
+     - 1 run per arm, at the frozen pins: no memory with a build byte-identical to 30a5e68e,
+       recap at 94508117.
 
      The combined ~98-pair analysis, stratified by backend, is secondary and makes no
      confirmatory claim. Both are reported whatever they show. `results/analyze_rows.py` computes
@@ -1068,8 +1069,8 @@ dataset) and writes three push directories.
      the extension primary are unchanged, and neither sees a Phase R row.
   2. **Design.**
      - Backend aws-l40s (one g6e.2xlarge, 1x L40S, spot). Same frozen pins and environment as the
-       extension: no memory with the build byte-identical to 61e408a (code dee8321a...), recap at
-       59f10a6 (code 16e71dab...), env 7f74aeda...; same vLLM flags, harness and limits.
+       extension: no memory with the build byte-identical to 30a5e68e (code dee8321a...), recap at
+       94508117 (code 16e71dab...), env 7f74aeda...; same vLLM flags, harness and limits.
      - Tasks: all 98 (the 48 plus the 50 of the extension), in seed order (seed 20261107; the
        envcheck `valid_in_seed_order` list minus the 7 registered exclusions; file
        `results/phase_r_tasks.txt`).

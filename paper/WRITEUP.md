@@ -15,8 +15,8 @@ Patrick Passos (Renor)
 
 ## Abstract
 
-When a coding agent's context is compacted, it loses what it found. We ask whether automatically
-re-injecting an agent's last finding after compaction helps a small model solve real repository tasks.
+When a coding agent runs out of room, its earlier findings are cut and it forgets them. We tested a simple fix: automatically putting the agent's last finding back in front of it. We fixed the rules in advance and ran 98 coding tasks with and without this reminder, using a small Gemma 4 model. The reminder made no measurable difference: across all 98 tasks, 47 were solved with it and 48 without. Running the same task twice changed the outcome about one time in five, so a single run on a few dozen tasks cannot show whether memory helps.
+
 In the treatment, the harness re-injects the explorer sub-agent's latest finding into every coder request, plus any notes the agent chose to write. It does **not** test agent-written memory. We compare it with no memory using Gemma 4 31B (QAT,
 4-bit) in the Gemma 4 Developer Agent harness, on 98 paired tasks across three backends (Modal H100,
 16 tasks; Kaggle 4x L4, 32 tasks; AWS L40S, 50 tasks added in a pre-registered extension).
@@ -93,7 +93,7 @@ in-task recap, decided from no-memory traces only.
 - **Adherence and delivery:** notes written, and the share of compactions at which something was
   injected. Both were registered as outcomes.
 - **Extension:** after seeing the 48-pair result, we pre-registered 50 more tasks on a third
-  backend (commit 51a75857, before any extension row): one run per arm at the frozen pins, with its
+  backend (commit bdf6c0e3, before any extension row): one run per arm at the frozen pins, with its
   own two-sided primary (exact McNemar, Newcombe interval). The combined 98-pair analysis,
   stratified by backend, is secondary. Pre-registered replicate runs of every task (Phase R) are reported separately.
 
@@ -266,4 +266,4 @@ cannot tell a real effect from noise.
 Next: a recap the harness builds from the tool history at every compaction and, for the
 main competition, a guard that ends a run after the first successful `submit_patch` in every arm.
 
-**Reproducibility.** `results/run_rows.jsonl` holds one row per run. `python results/analyze_rows.py` regenerates every number, and `paper/check_numbers.py` checks this text against it.
+**Reproducibility.** `results/run_rows.jsonl` holds one row per run. `python results/analyze_rows.py` regenerates every number, and `paper/check_numbers.py` checks this text against it. Code and data: https://github.com/renorai/gemma4-memory-study.

@@ -3,7 +3,7 @@
 **Written 2026-11-08T22:06Z (UTC), before any memory-arm result exists.**
 
 **State of the work when this was written.**
-- The branch head was `26c5fb1`.
+- The branch head was `19e0c960`.
 - The only real Gemma run reported on PR #1560 was the 8 Nov throughput run: a 16-task shard of the
   no-memory arm, which is not a protocol arm.
 - No memory, shuffled or recap episode had been run or reported. The author of this file had seen
@@ -29,7 +29,7 @@ labelled secondary.
 - A 48-task subset, fixed with seed 20261107, runs whatever else happens: no memory and memory,
   3 runs each. It is the floor, and the paper always reports it.
 - **The task list must be committed before any memory-arm result is read.** Put it in
-  `research/kaggle-gemma4/floor48.txt`, one task id per line, and add its sha256 to an entry below.
+  `floor48.txt`, one task id per line, and add its sha256 to an entry below.
   The arm-run kernel and the notebook read that file (`FLOOR_LIST`).
 - **Gap in the code at the time of writing.** No selector in the code takes a seed.
   `runner/budget.py:stratified_subset` orders tasks by sha256 of the task id, round-robin across
@@ -96,7 +96,7 @@ and `notebook/paper_tables.py`) implements rules 2–4 and regenerates every res
 ## Later entries
 
 - **2026-11-08T22:15Z. No memory-arm, shuffled or recap result had been seen; none had been run.**
-  This entry exists because of the independent review of `6163bd8`.
+  This entry exists because of the independent review of `40815939`.
   - **The conflict.** The "Names" paragraph above labels 12B results "secondary". Rule 4.3 says a
     CI that crosses zero carries "no significance claim". Both conflict with the frozen
     PREREG.md: §1 makes H1(31B) and H1(12B) the only confirmatory tests, and the decision rule

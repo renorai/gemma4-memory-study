@@ -6,8 +6,8 @@ code = sys.argv[1]; sys.path.insert(0, code)
 from harness.swegemma import read_trace
 from stats import mcnemar_exact
 from stats.repeats import compaction_turns, repeated_actions, wilcoxon_signed_rank, trimmed_mean
-MP = Path("/tmp/claude-1000/-home-patrickpassos-code-firstmate/56e05102-b08b-415e-8a08-bc226d322def/scratchpad/modal-probe")
-KG = Path("/tmp/claude-1000/-home-patrickpassos-code-firstmate/56e05102-b08b-415e-8a08-bc226d322def/scratchpad/kg")
+MP = Path("modal-probe")
+KG = Path("kg")
 A = "gemma-4-31b-it-qat-w4a16-ct"
 SRC = {"modal": {"none": [MP / f"shard/ck2/out/{A}/none/run1/all/results"],
                  "recap": [MP / f"shard/ck7/out/{A}/recap/run1/all/results", MP / f"shard/rescue/out/{A}/recap/run1/all/results"]},

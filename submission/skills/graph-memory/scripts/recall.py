@@ -5,7 +5,7 @@
 
 Runs inside the task sandbox: standard library only, no network, no model call, and it writes
 no file (no bytecode either). The retrieval code is `memory/` next to this file, copied verbatim
-from research/kaggle-gemma4/memory/ by runner/build_submission.py. The arm and its parameters
+from memory/ by runner/build_submission.py. The arm and its parameters
 come from ../assets/config.yaml, the lessons from ../assets/lessons.txt (JSON lines; the harness
 allows .txt but not .jsonl).
 

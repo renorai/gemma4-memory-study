@@ -1,7 +1,7 @@
 """Renor's retrieval rules, ported to standard-library Python (Python >= 3.8, no dependencies).
 
-Every rule here is a port of Renor's TypeScript engine and cites its source as file:line at
-patrickpassosb/renor main 2fd556b647f2c85852af21177714d2ed20fafa98 (`R:` below). No embeddings,
+Every rule here is a port of Renor's TypeScript engine and cites its source as file:line (`R:`
+below); the source snapshot is not part of this study export. No embeddings,
 no model call: the sandbox has neither, and Renor's keyword lane needs neither.
 
 1. Keyword lane (`KeywordIndex`):
