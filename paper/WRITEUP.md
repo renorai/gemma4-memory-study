@@ -26,8 +26,9 @@ The pre-registered primary outcome, pooled run-1 resolve rate on the first 48 pa
 memory against 25/48 without: +8.3 points, Newcombe 95% interval [-2.1, +18.3], exact McNemar
 p = 0.22. The extension, decided after that result, pointed the other way: 18/50 against 23/50,
 -10.0 points [-20.2, +0.7], p = 0.125. Combined (secondary, no confirmatory claim), 98 pairs: 47/98
-against 48/98, -1.0 points [-8.3, +6.3], p = 1.0. This is a null result; the sign did not replicate. With 19% of tasks flipping between two identical no-memory runs, the study can exclude only
-large effects (minimal detectable effect about ±12 points combined). The registered secondary,
+against 48/98, -1.0 points [-8.3, +6.3], p = 1.0. This is a null result; the sign did not replicate. With 19% of tasks flipping between two identical no-memory runs, the combined 95% interval
+excludes harms larger than about 8 points and gains larger than about 6, and the design had 80% power
+only for effects of about ±12 points or more. The registered secondary,
 repeated actions per compaction, was also null (+0.30 [-4.50, +5.98]). Two directional hypotheses
 found on Modal did not replicate on Kaggle. Pre-registered replicate runs of every task (Phase R)
 are in progress and will be added.
@@ -174,8 +175,8 @@ p is 0.125, so this is not significant by the registered test either. Neither es
 minimal detectable effect (about 18 points for 48 pairs, 17 for 50), and we registered no test of
 heterogeneity between sets, so the first result is not a stable finding. The combined estimate is
 -1.0 point [-8.3, +6.3]. It is secondary, pools backends and makes no confirmatory claim. We read
-it as no evidence of an effect in either direction, with effects larger than about 8 points
-excluded.
+it as no evidence of an effect in either direction, Its 95% interval excludes harms larger than about 8 points and gains larger than about 6; the
+design had 80% power only for effects of about 12 points or more.
 
 ![Figure 1](figures/forest.png)
 *Figure 1. Resolve-rate difference with Newcombe 95% intervals. Blue: recap minus none, per backend
@@ -277,8 +278,8 @@ the task family. We cite no benchmark number as comparable to this harness.
 
 Automatically carrying the explorer's last finding across compaction did not measurably change
 how often Gemma 4 31B resolved tasks. The first 48 pairs favored memory by 8.3 points, 50 new pairs
-favored no memory by 10.0, and the combined 98 differ by -1.0. The study can exclude only effects
-larger than about 12 points. Its clearest lessons are about the mechanism and the measurement. Small models do not
+favored no memory by 10.0, and the combined 98 differ by -1.0. The combined 95% interval excludes harms larger than about 8 points and gains larger than about 6,
+and the design had 80% power only for effects of about 12 points or more. Its clearest lessons are about the mechanism and the measurement. Small models do not
 write memory unless memory writes itself, and memory costs context, which causes more compactions.
 With 19% of tasks flipping between identical runs, a single-run comparison on a few dozen tasks
 cannot tell a real effect from noise.
