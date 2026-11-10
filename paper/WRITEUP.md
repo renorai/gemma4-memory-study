@@ -8,7 +8,8 @@ Run 2 of the Kaggle recap arm is sensitivity only (DESIGN.md, 2026-11-09T07:48Z)
 the headline.
 -->
 
-# Carrying the Last Finding Across Context Compaction: A Pre-Registered Null Result for Automatic Finding Re-Injection in a Small Gemma 4 Coding Agent
+# One Run Is Not Enough
+*Reminding a small Gemma 4 coding agent of its last finding made no measurable difference in a pre-registered test.*
 
 Patrick Passos (Renor)
 
