@@ -29,8 +29,7 @@ against 48/98, -1.0 points [-8.3, +6.3], p = 1.0. A null result; the sign did no
 excludes harms larger than about 8 points and gains larger than about 6, and the design had 80% power
 only for effects of about ±12 points or more. The registered secondary,
 repeated actions per compaction, was also null (+0.30 [-4.50, +5.98]). Two directional hypotheses
-found on Modal did not replicate on Kaggle. Pre-registered replicate runs of every task (Phase R)
-are in progress.
+found on Modal did not replicate on Kaggle. Pre-registered replicate runs of every task (Phase R) are reported separately.
 
 The mechanism findings (first 48 tasks): the model almost never wrote notes (2 of 16
 and 4 of 32 runs). Memory costs context: the first request is larger, and the arm compacted more on
@@ -96,8 +95,7 @@ in-task recap, decided from no-memory traces only.
 - **Extension:** after seeing the 48-pair result, we pre-registered 50 more tasks on a third
   backend (commit 51a75857, before any extension row): one run per arm at the frozen pins, with its
   own two-sided primary (exact McNemar, Newcombe interval). The combined 98-pair analysis,
-  stratified by backend, is secondary. Replicate runs of every task (Phase R, commit df04e505) are
-  pre-registered and in progress; they are not reported here.
+  stratified by backend, is secondary. Pre-registered replicate runs of every task (Phase R) are reported separately.
 
 Every other test is post-hoc and labelled so; we ran 23 (`results/posthoc_tests.md`).
 
@@ -146,8 +144,7 @@ only for effects of about ±18 points.
 the 48, [-20.0, 0.0] for the extension and [-8.2, +6.1] combined. The bootstrap bound at 0 follows
 from the 5/1 and 1/6 splits and is not evidence for or against harm.*
 
-On the first 48 tasks, memory resolved 4 more, not significantly. The interval
-excludes harms larger than about 2 points and gains larger than about 18 points. The no-memory arm moved by the same +6.3 points against itself as the Modal treatment effect did
+On the first 48 tasks, memory resolved 4 more, not significantly. The no-memory arm moved by the same +6.3 points against itself as the Modal treatment effect did
 (Figure 1). Per-protocol, which excludes runs flagged `plumbing_failed`, the result is
 the same (26 pairs, 13 vs 11, p = 0.5). So is the registered sensitivity analysis, the per-task mean over all available runs (+5.2 points, bootstrap [-3.1, +12.5]).
 
@@ -189,7 +186,7 @@ task (among the 23 post-hoc tests). Only single-stratum
 tests fell below 0.05: Kaggle repeat rate without post-submit submits (p 0.029), Kaggle repeats per
 call (0.021 registered steps, 0.042 without post-submit submits), Modal compactions per task (0.032)
 and the Modal discovery of H-b (0.0088). None survives a Bonferroni correction over the 23, and no
-pooled test reached 0.05. Pooled raw repeats did not fall (post-hoc -0.98 [-3.17, +1.02], p 0.53).
+pooled test reached 0.05. Pooled raw repeats per task did not fall (both post-hoc): +8.1 [-18.0, +35.9], p 0.54 at the registered steps, inflated by the loops, and -0.98 [-3.17, +1.02], p 0.53 with post-submit submits removed.
 A "memory reduces repeated actions" claim is not supported.
 
 ### 3.3 Replication of two Modal hypotheses (pre-registered)
@@ -248,7 +245,7 @@ the task family. We cite no benchmark number as comparable.
   rich 15, httpx 1). Pairing within a task keeps each difference valid, but no per-backend or
   per-repository effect can be claimed.
 - **Run noise, one model.** Only run 1 is primary. The extension has one run per arm, and recap run
-  2 exists only on Kaggle. The extension was decided after the
+  2 exists only on Kaggle. Pre-registered replicate runs of every task (Phase R) are reported separately. The extension was decided after the
   48-pair result and runs on a different backend (fastapi 26, rich 24 tasks). All results are for
   Gemma 4 31B QAT.
 - **Valid-set skew.** 105 of 129 tasks were valid; the excluded ones are mostly fastapi tasks that
