@@ -9,7 +9,7 @@ the headline.
 -->
 
 # One Run Is Not Enough
-*Reminding a small Gemma 4 coding agent of its last finding made no measurable difference in a pre-registered test.*
+*Reminding a small Gemma 4 coding agent of its last finding made no measurable difference in a paired test.*
 
 Patrick Passos (Renor)
 
@@ -21,7 +21,7 @@ In the treatment, the harness re-injects the explorer sub-agent's latest finding
 4-bit) in the Gemma 4 Developer Agent harness, on 98 paired tasks across three backends (Modal H100,
 16 tasks; Kaggle 4x L4, 32 tasks; AWS L40S, 50 tasks added in a pre-registered extension).
 
-The pre-registered primary outcome, pooled run-1 resolve rate on the first 48 pairs, was 29/48 with
+The primary outcome (a documented deviation from our preregistration), pooled run-1 resolve rate on the first 48 pairs, was 29/48 with
 memory against 25/48 without: +8.3 points, Newcombe 95% interval [-2.1, +18.3], exact McNemar
 p = 0.22. The extension, decided after that result, pointed the other way: 18/50 against 23/50,
 -10.0 points [-20.2, +0.7], p = 0.125. Combined (secondary, no confirmatory claim), 98 pairs: 47/98
@@ -46,7 +46,7 @@ explorer question came after a compaction. Experience memory across tasks target
 problem, and on coding tasks 11 of 12 pairings did not beat memory-off (VibeMemBench).
 
 **Contributions.**
-1. A pre-registered paired comparison, stratified by backend, with a null primary result, a
+1. A paired comparison, stratified by backend, with a null primary result, a
    pre-registered extension whose sign differs, and intervals that state which effects they exclude.
 2. Mechanism findings: adherence, the context cost of memory, delivery rates, and a
    treatment-associated `submit_patch` loop.
@@ -78,8 +78,8 @@ finding, plus rare notes. We do not test agent-written working memory.** No embe
 
 ### 2.3 Pre-registration and analysis
 
-`PREREG.md` (hash-frozen) and `DESIGN.md` section 10, a timestamped change log, record every
-decision before the data it could affect. The headline moved from cross-task lessons to the
+`PREREG.md` (hash-frozen) and `DESIGN.md` section 10, a timestamped change log, record each
+decision with its time. The run-1 pooled form of the primary was fixed 5 minutes before the first results commit. The headline moved from cross-task lessons to the
 in-task recap, decided from no-memory traces only.
 
 - **Primary:** resolve rate, intention to treat, run 1 against run 1, pooled over 48 pairs, with a
@@ -129,7 +129,7 @@ only for effects of about ±18 points.
 
 ## 3. Experiments
 
-### 3.1 Resolve rate: primary, extension and combined (pre-registered)
+### 3.1 Resolve rate: primary, extension and combined
 
 <!-- RESULTS-TABLE -->
 | Set | recap / none resolved | recap-only / none-only | difference | Newcombe 95% | exact McNemar p |

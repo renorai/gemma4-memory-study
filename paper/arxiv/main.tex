@@ -9,13 +9,13 @@
 \usepackage{lmodern,microtype}
 \usepackage{amsmath,booktabs,graphicx,natbib,xcolor,enumitem}
 \usepackage[hidelinks]{hyperref}
-\hypersetup{pdftitle={One Run Is Not Enough: Reminding a small Gemma 4 coding agent of its last finding made no measurable difference in a pre-registered test.}}
+\hypersetup{pdftitle={One Run Is Not Enough: Reminding a small Gemma 4 coding agent of its last finding made no measurable difference in a paired test.}}
 \graphicspath{{../figures/}{figures/}}
 \setlist{nosep,leftmargin=1.4em}
 \newcommand{\code}[1]{\texttt{#1}}
 
 \title{One Run Is Not Enough\\[0.35em]
-{\large Reminding a small Gemma~4 coding agent of its last finding made no measurable difference in a pre-registered test.}}
+{\large Reminding a small Gemma~4 coding agent of its last finding made no measurable difference in a paired test.}}
 \author{Patrick Passos\\Renor}
 \date{November 2026}
 
@@ -30,7 +30,7 @@ almost never did). It does \emph{not} test agent-written memory.
 We compare it with no memory using Gemma~4 31B (QAT,
 4-bit) in the Gemma~4 Developer Agent harness~\citep{kaggle2026gemma4agent}, on 98 paired tasks
 across three backends (Modal H100, 16 tasks; Kaggle 4$\times$L4, 32 tasks; AWS L40S, 50 tasks added in
-a pre-registered extension). The pre-registered primary outcome, pooled run-1 resolve rate on the
+a pre-registered extension). The primary outcome (a documented deviation from our preregistration), pooled run-1 resolve rate on the
 first 48 pairs, was 29/48 with memory against 25/48 without: $+8.3$ points, Newcombe 95\% interval
 $[-2.1, +18.3]$, exact McNemar $p=0.22$. The extension, decided after that result, pointed the other
 way: 18/50 against 23/50, $-10.0$ points $[-20.2, +0.7]$, $p=0.125$. Combined (secondary, no
@@ -64,7 +64,7 @@ help Gemma~4 31B resolve real repository tasks?
 
 \paragraph{Contributions.}
 \begin{enumerate}
-\item A pre-registered paired comparison, stratified by backend, with a null primary result, a
+\item A paired comparison, stratified by backend, with a null primary result, a
   pre-registered extension whose sign differs, and intervals that state which effects they exclude
   (Section~\ref{sec:primary}).
 \item Mechanism findings: adherence (the model rarely writes memory), the context cost of memory,
@@ -100,8 +100,8 @@ test is therefore automatic carry-over of the explorer's last finding, plus rare
 test agent-written working memory.} No embeddings are used.
 
 \subsection{Pre-registration and analysis}
-A hash-frozen pre-registration and a timestamped protocol change log record every decision before
-the data it could affect. The headline moved from cross-task lessons to the in-task recap. That
+A hash-frozen pre-registration and a timestamped protocol change log record each decision with its
+time. The run-1 pooled form of the primary was fixed 5 minutes before the first results commit. The headline moved from cross-task lessons to the in-task recap. That
 decision was made from no-memory traces only, before any memory-arm run.
 \begin{itemize}
 \item \textbf{Primary:} resolve rate, intention to treat, run 1 against run 1, pooled over 48 pairs.
@@ -166,7 +166,7 @@ overflows (run 1 / run 2) & 5 / 4 & 1 / 0 \\\bottomrule
 \end{table}
 
 \section{Results}
-\subsection{Resolve rate: primary, extension and combined (pre-registered)}\label{sec:primary}
+\subsection{Resolve rate: primary, extension and combined}\label{sec:primary}
 
 \begin{table}[t]\centering\small
 \caption{Resolve rate. Run 1, intention to treat. The backend-stratified bootstrap gives
@@ -374,7 +374,7 @@ analysis output, the rows and the change log. Code, data and the commit history 
 
 \appendix
 \section{All post-hoc tests}\label{app:posthoc}
-All 23 are computed by \code{results/analyze\_rows.py}. The Modal worker's own H-a counter (9/2/5, two-sided $p$ 0.061) tested the same hypothesis on the same traces as test 22 (8/2/6 by the frozen detector) and is not counted separately. Also not counted: the pre-registered primary, the
+All 23 are computed by \code{results/analyze\_rows.py}. The Modal worker's own H-a counter (9/2/5, two-sided $p$ 0.061) tested the same hypothesis on the same traces as test 22 (8/2/6 by the frozen detector) and is not counted separately. Also not counted: the primary, the
 registered repeat rate, the Kaggle replications of H-a and H-b, and the A/A calibration. All
 Wilcoxon tests are recap $-$ none, paired by task.
 
